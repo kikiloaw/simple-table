@@ -1,0 +1,795 @@
+<script setup lang="ts" generic="T">
+import { computed, ref, watch, onMounted } from 'vue'
+import { router } from '@inertiajs/vue3'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from './components/table'
+
+
+
+import { useDebounceFn } from '@vueuse/core'
+
+/**
+ * Props definition
+ */
+interface Props {
+  data?: any[] | Record<string, any> // Array for client-side, Object (Paginator) for server-side
+  columns: {
+    key: string
+    label: string
+    sortable?: boolean | string // true for default (use key), string for custom backend column name
+    class?: string
+    fixed?: boolean // 'left' or 'right' could be added later, assuming 'right' for actions usually
+    width?: string
+  }[]
+  mode?: 'auto' | 'server' | 'client'
+  protocol?: 'laravel' | 'datatables' // API request/response format
+  searchable?: boolean
+  perPage?: number
+  pageSizes?: any[] // number[] or { label: string, value: number }[]
+  fetchUrl?: string
+  
+  // Cache Props
+  enableCache?: boolean // If true, cache responses by page/search/sort to avoid redundant requests
+  
+  // Additional Query Parameters
+  queryParams?: Record<string, any> // Additional parameters to send with every request (e.g., filters, user context)
+  
+  // Style Props
+  oddRowColor?: string  // Tailwind color class, e.g. 'bg-white'
+  evenRowColor?: string // Tailwind color class, e.g. 'bg-gray-50'
+  hoverColor?: string   // Tailwind color class for hover, e.g. 'hover:bg-gray-100'. If passed, we'll try to apply group-hover for fixed cols.
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  data: () => [],
+  mode: 'auto',
+  protocol: 'laravel',
+  searchable: true,
+  enableCache: false,
+  queryParams: () => ({}),
+  perPage: 10,
+  pageSizes: () => [10, 20, 30, 50, 100],
+  oddRowColor: 'bg-background',
+  evenRowColor: 'bg-background',
+  hoverColor: 'hover:bg-muted/50'
+})
+
+// ...
+
+// -- Computed: Page Sizes Normalization --
+const normalizedPageSizes = computed(() => {
+    if (!props.pageSizes || props.pageSizes.length === 0) return []
+    
+    // Check first item type
+    const first = props.pageSizes[0]
+    
+    // If simple numbers [10, 20]
+    if (typeof first === 'number' || typeof first === 'string') {
+        return props.pageSizes.map(v => ({ label: String(v), value: String(v) }))
+    }
+    
+    // If objects [{ label: 'All', value: 999 }, { label: '20', value: 20 }]
+    if (typeof first === 'object' && 'label' in first && 'value' in first) {
+        return props.pageSizes.map(v => ({ label: v.label, value: String(v.value) }))
+    }
+    
+    // Fallback?
+    return []
+})
+
+
+
+// <template>
+// ...
+/*
+      <div class="flex items-center gap-2 ml-auto">
+          <!-- Mini Export Buttons -->
+          <Button 
+            v-if="exportable || enableCsv" 
+            variant="outline" 
+            size="icon" 
+            class="h-8 w-8"
+            title="Export CSV"
+            @click="handleExport('csv')"
+         >
+            <FileText class="h-4 w-4 text-green-600" />
+         </Button>
+         <Button 
+            v-if="exportable || enableExcel" 
+            variant="outline" 
+            size="icon" 
+            class="h-8 w-8"
+            title="Export Excel"
+            @click="handleExport('excel')"
+         >
+            <Sheet class="h-4 w-4 text-emerald-600" />
+         </Button>
+         <Button 
+            v-if="exportable || enablePdf" 
+            variant="outline" 
+            size="icon" 
+            class="h-8 w-8"
+            title="Export PDF"
+            @click="handleExport('pdf')"
+         >
+             <!-- Using Download icon for PDF or maybe FileText? Let's use Download for generic or find a PDF-like icon. FileText is close. -->
+            <FileText class="h-4 w-4 text-red-600" />
+         </Button>
+         <slot name="actions" />
+      </div>
+*/
+
+const emit = defineEmits(['update:search', 'update:sort', 'page-change'])
+
+// -- State --
+const searchQuery = ref('')
+const sortColumn = ref('')
+const sortDirection = ref<'asc' | 'desc'>('asc')
+const currentPage = ref(1)
+const isLoading = ref(false)
+
+const currentPerPage = ref(props.perPage)
+const drawCounter = ref(1) // For DataTables protocol
+
+
+// -- Cache System --
+const responseCache = ref<Map<string, any>>(new Map())
+
+function getCacheKey(): string {
+    // Create a unique key based on current state
+    return JSON.stringify({
+        page: currentPage.value,
+        perPage: currentPerPage.value,
+        search: searchQuery.value,
+        sort: sortColumn.value,
+        order: sortDirection.value,
+        queryParams: props.queryParams
+    })
+}
+
+function clearCache() {
+    responseCache.value.clear()
+}
+
+// Internal data state to handle both props updates and ajax updates
+const internalData = ref(props.data)
+
+watch(() => props.data, (newVal) => {
+    internalData.value = newVal
+}, { deep: true })
+
+// Watch queryParams and refetch when they change
+watch(() => props.queryParams, () => {
+    if (isServerSide.value) {
+        currentPage.value = 1 // Reset to first page when filters change
+        fetchData()
+    }
+}, { deep: true })
+
+// -- Computed: Mode Detection --
+const isServerSide = computed(() => {
+  if (props.mode === 'server') return true
+  if (props.mode === 'client') return false
+  if (props.fetchUrl) return true
+  
+  // Auto detect
+  const d = internalData.value as any
+  if (d && typeof d === 'object' && !Array.isArray(d)) {
+    if ('current_page' in d) return true
+    if (d.meta && 'current_page' in d.meta) return true
+  }
+  return false
+})
+
+// -- Helper Data Accessors --
+const serverMeta = computed(() => {
+    if (!isServerSide.value) return null
+    const d = internalData.value as any
+    // Handle standard Laravel Paginator or Resource Collection
+    const meta = d.meta || d
+    return {
+        current_page: meta.current_page ?? 1,
+        last_page: meta.last_page ?? 1,
+        from: meta.from ?? 0,
+        to: meta.to ?? 0,
+        total: meta.total ?? 0,
+        links: meta.links ?? []
+    }
+})
+
+// -- Computed: Data Normalization --
+const tableData = computed(() => {
+  if (isServerSide.value) {
+    const d = internalData.value as any
+    return d.data || []
+  }
+  
+  // Client Side Processing
+  let items = [...(internalData.value as any[])]
+
+  // 1. Filter
+  if (searchQuery.value) {
+    const lowerQuery = searchQuery.value.toLowerCase()
+    items = items.filter((item) =>
+      Object.values(item).some((val) =>
+        String(val).toLowerCase().includes(lowerQuery)
+      )
+    )
+  }
+
+  // 2. Sort
+  if (sortColumn.value) {
+    items.sort((a, b) => {
+      const valA = a[sortColumn.value]
+      const valB = b[sortColumn.value]
+      if (valA === valB) return 0
+      const comparison = valA > valB ? 1 : -1
+      return sortDirection.value === 'asc' ? comparison : -comparison
+    })
+  }
+
+  // 3. Paginate
+  const start = (currentPage.value - 1) * currentPerPage.value
+  const end = start + currentPerPage.value
+  return items.slice(start, end)
+})
+
+const totalPages = computed(() => {
+  if (isServerSide.value) {
+    return serverMeta.value?.last_page || 1
+  }
+  let filtered = (internalData.value as any[])
+   if (searchQuery.value) {
+      const lowerQuery = searchQuery.value.toLowerCase()
+      filtered = filtered.filter((item) =>
+      Object.values(item).some((val) =>
+          String(val).toLowerCase().includes(lowerQuery)
+      )
+      )
+  }
+  return Math.ceil(filtered.length / currentPerPage.value) || 1
+})
+
+const paginationMeta = computed(() => {
+    if (isServerSide.value) {
+        return serverMeta.value || { from: 0, to: 0, total: 0 }
+    }
+    // Client side meta
+    let filtered = (internalData.value as any[])
+     if (searchQuery.value) {
+        const lowerQuery = searchQuery.value.toLowerCase()
+        filtered = filtered.filter((item) =>
+        Object.values(item).some((val) =>
+            String(val).toLowerCase().includes(lowerQuery)
+        )
+        )
+    }
+    const total = filtered.length;
+    const from = total === 0 ? 0 : (currentPage.value - 1) * currentPerPage.value + 1
+    const to = Math.min(from + currentPerPage.value - 1, total)
+
+    return { from, to, total }
+})
+
+// -- Computed: Page Numbers for Pagination --
+const pageNumbers = computed(() => {
+    const current = isServerSide.value ? (serverMeta.value?.current_page || 1) : currentPage.value
+    const total = totalPages.value
+    const delta = 2 // Number of pages to show on each side of current page
+    const pages: (number | string)[] = []
+    
+    // Always show first page
+    pages.push(1)
+    
+    // Calculate range around current page
+    const rangeStart = Math.max(2, current - delta)
+    const rangeEnd = Math.min(total - 1, current + delta)
+    
+    // Add ellipsis after first page if needed
+    if (rangeStart > 2) {
+        pages.push('...')
+    }
+    
+    // Add pages in range
+    for (let i = rangeStart; i <= rangeEnd; i++) {
+        pages.push(i)
+    }
+    
+    // Add ellipsis before last page if needed
+    if (rangeEnd < total - 1) {
+        pages.push('...')
+    }
+    
+    // Always show last page if there's more than one page
+    if (total > 1) {
+        pages.push(total)
+    }
+    
+    return pages
+})
+
+// -- Methods --
+
+async function fetchData(params: any = {}) {
+    if (props.fetchUrl) {
+        // Check cache first if enabled
+        const cacheKey = getCacheKey()
+        if (props.enableCache && responseCache.value.has(cacheKey)) {
+            // Use cached data
+            internalData.value = responseCache.value.get(cacheKey)
+            return
+        }
+        
+        isLoading.value = true
+        try {
+            // Construct Query Parameters
+            const url = new URL(props.fetchUrl, window.location.origin)
+            
+            if (props.protocol === 'datatables') {
+                // DataTables format
+                const start = (currentPage.value - 1) * currentPerPage.value
+                url.searchParams.append('start', String(start))
+                url.searchParams.append('length', String(currentPerPage.value))
+                url.searchParams.append('draw', String(drawCounter.value))
+                
+                if (searchQuery.value) {
+                    url.searchParams.append('search[value]', searchQuery.value)
+                }
+                
+                if (sortColumn.value) {
+                    // Find column index
+                    const columnIndex = props.columns.findIndex(col => {
+                        const sortKey = typeof col.sortable === 'string' ? col.sortable : col.key
+                        return sortKey === sortColumn.value
+                    })
+                    
+                    if (columnIndex !== -1) {
+                        url.searchParams.append('order[0][column]', String(columnIndex))
+                        url.searchParams.append('order[0][dir]', sortDirection.value)
+                    }
+                }
+            } else {
+                // Laravel format (default)
+                url.searchParams.append('page', String(currentPage.value))
+                url.searchParams.append('per_page', String(currentPerPage.value))
+                
+                if (searchQuery.value) {
+                    url.searchParams.append('search', searchQuery.value)
+                }
+                if (sortColumn.value) {
+                    url.searchParams.append('sort', sortColumn.value)
+                    url.searchParams.append('order', sortDirection.value)
+                }
+            }
+
+            // Add custom query params from prop
+            if (props.queryParams) {
+                Object.keys(props.queryParams).forEach(key => {
+                    const value = props.queryParams![key]
+                    if (value !== null && value !== undefined) {
+                        url.searchParams.append(key, String(value))
+                    }
+                })
+            }
+
+            // Merge passed params (these override queryParams if there's a conflict)
+            Object.keys(params).forEach(key => {
+                 url.searchParams.set(key, String(params[key]))
+            })
+
+            const response = await fetch(url.toString(), {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`)
+            }
+
+            let data = await response.json()
+            
+            // Transform DataTables response to internal format
+            if (props.protocol === 'datatables') {
+                // DataTables response: { draw, recordsTotal, recordsFiltered, data }
+                // Transform to Laravel format internally
+                const totalRecords = data.recordsFiltered || data.recordsTotal || 0
+                const totalPages = Math.ceil(totalRecords / currentPerPage.value)
+                
+                data = {
+                    data: data.data || [],
+                    current_page: currentPage.value,
+                    last_page: totalPages,
+                    per_page: currentPerPage.value,
+                    total: data.recordsFiltered || 0,
+                    from: totalRecords > 0 ? ((currentPage.value - 1) * currentPerPage.value) + 1 : 0,
+                    to: Math.min(currentPage.value * currentPerPage.value, totalRecords)
+                }
+                
+                // Increment draw counter for next request
+                drawCounter.value++
+            }
+            
+            internalData.value = data
+            
+            // Store in cache if enabled
+            if (props.enableCache) {
+                responseCache.value.set(cacheKey, data)
+            }
+        } catch (error) {
+            console.error('Failed to fetch table data', error)
+        } finally {
+            isLoading.value = false
+        }
+    } else if (isServerSide.value) {
+         router.visit(window.location.pathname, {
+            data: { 
+                page: params.page ?? currentPage.value,
+                per_page: currentPerPage.value,
+                search: params.search ?? searchQuery.value,
+                sort: params.sort ?? sortColumn.value,
+                order: params.order ?? sortDirection.value,
+                ...(props.queryParams || {})
+            },
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+            onStart: () => isLoading.value = true,
+            onFinish: () => isLoading.value = false
+        })
+    }
+}
+
+// ...
+
+
+
+// ... 
+
+// -- Template for Pagination --
+/*
+    <div class="flex items-center justify-between px-2">
+      <!-- Left side: Meta + Page Size -->
+      <div class="flex items-center gap-6">
+          <div class="text-sm text-muted-foreground">
+              Showing {{ paginationMeta.from }} to {{ paginationMeta.to }} of {{ paginationMeta.total }} results
+          </div>
+          <div class="flex items-center space-x-2">
+            <p class="text-sm font-medium hidden sm:block">Rows per page</p>
+            <Select 
+                :model-value="String(currentPerPage)" 
+                @update:model-value="handlePageSizeChange"
+            >
+            <SelectTrigger class="h-8 w-[70px]">
+                <SelectValue :placeholder="String(currentPerPage)" />
+            </SelectTrigger>
+            <SelectContent side="top">
+                <SelectItem 
+                    v-for="pageSize in pageSizes" 
+                    :key="pageSize" 
+                    :value="String(pageSize)"
+                >
+                {{ pageSize }}
+                </SelectItem>
+            </SelectContent>
+            </Select>
+          </div>
+      </div>
+      
+      <!-- Right side: Nav Buttons -->
+      <div class="flex items-center space-x-2">
+        ... buttons ...
+      </div>
+    </div>
+*/
+
+// -- Actions --
+
+const debouncedSearch = useDebounceFn((value: string) => {
+   if (isServerSide.value) {
+    if (!props.fetchUrl) {
+         // Reset page for Inertia
+         // We do this manually here because fetchData logic is slightly different
+         fetchData({ search: value, page: 1 })
+    } else {
+        currentPage.value = 1
+        fetchData()
+    }
+   } else {
+     currentPage.value = 1
+   }
+   emit('update:search', value)
+}, 300)
+
+watch(searchQuery, (val) => {
+    debouncedSearch(val)
+})
+
+function handleSort(col: any) {
+  // Determine the actual column to sort by
+  // If sortable is a string, use it; otherwise use the column key
+  const sortKey = typeof col.sortable === 'string' ? col.sortable : col.key
+  
+  if (sortColumn.value === sortKey) {
+    sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortColumn.value = sortKey
+    sortDirection.value = 'asc'
+  }
+
+  if (isServerSide.value) {
+    fetchData({ sort: sortColumn.value, order: sortDirection.value })
+  }
+
+  emit('update:sort', { column: sortColumn.value, direction: sortDirection.value })
+}
+
+function handlePageSizeChange(size: any) {
+    currentPerPage.value = Number(size)
+    currentPage.value = 1
+    fetchData()
+}
+
+function handlePageChange(page: number) {
+  if (page < 1 || page > totalPages.value) return
+  
+  currentPage.value = page
+
+  if (isServerSide.value) {
+      fetchData({ page: page })
+  }
+  
+  emit('page-change', page)
+}
+
+function refresh() {
+    currentPage.value = 1
+    fetchData()
+}
+
+onMounted(() => {
+    if (props.fetchUrl) {
+        fetchData()
+    }
+})
+
+defineExpose({
+    refresh,
+    fetchData, // exposing fetchData too just in case
+    clearCache // expose cache clearing method
+})
+
+// -- Helper Styles --
+function getCellClass(col: any, index: number, totalCols: number, rowIndex: number = -1) {
+    let classes = col.class || ''
+    
+    // Base classes
+    // Removed whitespace-nowrap to allow wrapping
+    
+    if (col.fixed) {
+        // Sticky logic
+        const isLast = index === totalCols - 1
+        
+        let stickyClass = ''
+        if (isLast) {
+             // Right sticky: Stronger shadow to the left, and a left border
+             stickyClass = ' sticky right-0 z-10 shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.1)] border-l border-border/50'
+        } else {
+            // Left sticky: Stronger shadow to the right, and a right border
+            stickyClass = ' sticky left-0 z-10 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.1)] border-r border-border/50'
+        }
+
+        // Determine background
+        // Sticky cells need opaque bg. We rely on the props.
+        let bgClass = 'bg-background' // Fallback
+        
+        if (rowIndex !== -1) {
+            // Body Row
+            const isEven = rowIndex % 2 === 0
+            bgClass = isEven ? props.evenRowColor : props.oddRowColor
+            
+            // Should also match hover
+            // If the row has a hover class (like hover:bg-muted), the sticky cell needs group-hover:bg-muted to match.
+            // We assume hoverColor is passed as 'hover:bg-...' 
+            // We try to convert 'hover:bg-...' to 'group-hover:bg-...'
+            if (props.hoverColor) {
+               const hoverParts = props.hoverColor.split(':')
+               if (hoverParts.length > 1) {
+                   // e.g. ['hover', 'bg-blue-100'] -> 'group-hover:bg-blue-100'
+                   bgClass += ` group-hover:${hoverParts[1]}`
+                   // Also handle things like 'hover:bg-muted/50'
+                   if (hoverParts.length > 2) {
+                       bgClass = bgClass + ':' + hoverParts.slice(2).join(':')
+                   }
+               }
+            }
+        } else {
+            // Header Row
+            bgClass = 'bg-background'
+        }
+        
+        classes += stickyClass + ' ' + bgClass
+    }
+    return classes
+}
+
+function getCellStyle(col: any) {
+    if (col.width) {
+        return { width: col.width, minWidth: col.width, maxWidth: col.width }
+    }
+    return {}
+}
+
+</script>
+
+<template>
+  <div class="space-y-4">
+    <!-- Toolbar -->
+    <div v-if="searchable" class="flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div v-if="searchable" class="relative w-full sm:max-w-sm flex items-center gap-2">
+        <!-- Page Size Select (Z-Index increased to sit above siblings) -->
+        <!-- Page Size Select (Native & Styled) -->
+        <div class="flex items-center gap-2 shrink-0 relative z-20">
+            <span class="text-sm text-muted-foreground whitespace-nowrap hidden sm:inline">Rows</span>
+            <div class="relative">
+                <select 
+                    :value="currentPerPage" 
+                    @change="(e: any) => handlePageSizeChange(e.target.value)"
+                    class="h-10 w-[80px] appearance-none rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                >
+                    <option 
+                        v-for="pageSize in normalizedPageSizes" 
+                        :key="pageSize.value" 
+                        :value="pageSize.value"
+                    >
+                    {{ pageSize.label }}
+                    </option>
+                </select>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute right-2 top-3 h-4 w-4 opacity-50 pointer-events-none"><path d="m6 9 6 6 6-6"/></svg>
+           </div>
+        </div>
+
+        <!-- Search Input -->
+        <div class="relative w-full z-10">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input
+                v-model="searchQuery"
+                type="text"
+                placeholder="Search..."
+                class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 pl-8 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            />
+        </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:ml-auto justify-start sm:justify-end">
+         <slot name="actions" :rows="tableData" :columns="columns" />
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="rounded-md border bg-background overflow-x-auto relative">
+      <!-- We add min-w-full to Table to ensure it stretches -->
+      <Table class="min-w-full table-fixed"> 
+        <TableHeader>
+          <TableRow>
+            <TableHead
+              v-for="(col, idx) in columns"
+              :key="col.key"
+              :class="getCellClass(col, idx, columns.length)"
+              :style="getCellStyle(col)"
+            >
+              <div
+                v-if="col.sortable"
+                class="flex items-center space-x-2 cursor-pointer select-none hover:text-foreground"
+                @click="handleSort(col)"
+              >
+                <div>{{ col.label }}</div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4 opacity-50 flex-shrink-0"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+              </div>
+              <div v-else>{{ col.label }}</div>
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <template v-if="isLoading">
+             <TableRow>
+                <TableCell :colspan="columns.length" class="h-24 text-center">
+                    <div class="flex items-center justify-center">
+                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6 animate-spin text-muted-foreground"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                    </div>
+                </TableCell>
+             </TableRow>
+          </template>
+          <template v-else-if="tableData.length">
+            <TableRow 
+                v-for="(row, idx) in tableData" 
+                :key="idx"
+                class="group"
+                :class="[{ [evenRowColor]: Number(idx) % 2 === 0, [oddRowColor]: Number(idx) % 2 !== 0 }, hoverColor]"
+            >
+              <TableCell
+                v-for="(col, cIdx) in columns"
+                :key="col.key"
+                :class="getCellClass(col, cIdx, columns.length, Number(idx))"
+                :style="getCellStyle(col)"
+              >
+                <!-- Scoped Slot for custom cell rendering -->
+                 <div>
+                    <slot :name="`cell-${col.key}`" :row="row">
+                    {{ row[col.key] }}
+                    </slot>
+                 </div>
+              </TableCell>
+            </TableRow>
+          </template>
+          <TableRow v-else>
+            <TableCell :colspan="columns.length" class="h-24 text-center">
+              No results.
+            </TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="flex items-center justify-between px-2">
+        <div class="text-sm text-muted-foreground">
+            Showing {{ paginationMeta.from }} to {{ paginationMeta.to }} of {{ paginationMeta.total }} results
+        </div>
+      <div class="flex items-center space-x-1">
+        <!-- Previous Button -->
+        <button
+          class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3"
+          :disabled="(isServerSide ? serverMeta?.current_page === 1 : currentPage === 1)"
+          @click="handlePageChange(isServerSide ? (serverMeta?.current_page || 1) - 1 : currentPage - 1)"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="m15 18-6-6 6-6"/></svg>
+          <span class="ml-1 hidden sm:inline">Previous</span>
+        </button>
+        
+        <!-- Page Number Buttons -->
+        <template v-for="(page, index) in pageNumbers" :key="index">
+          <!-- Ellipsis -->
+          <span 
+            v-if="page === '...'" 
+            class="inline-flex items-center justify-center h-9 px-3 text-sm text-muted-foreground"
+          >
+            ...
+          </span>
+          
+          <!-- Page Number Button -->
+          <button
+            v-else
+            class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border h-9 min-w-[36px] px-3"
+            :class="[
+              (isServerSide ? serverMeta?.current_page === page : currentPage === page)
+                ? 'bg-primary text-primary-foreground border-primary hover:bg-primary/90'
+                : 'border-input bg-background hover:bg-accent hover:text-accent-foreground'
+            ]"
+            @click="handlePageChange(page as number)"
+          >
+            {{ page }}
+          </button>
+        </template>
+        
+        <!-- Next Button -->
+        <button
+          class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3"
+          :disabled="(isServerSide ? serverMeta?.current_page === serverMeta?.last_page : currentPage === totalPages)"
+          @click="handlePageChange(isServerSide ? (serverMeta?.current_page || 1) + 1 : currentPage + 1)"
+        >
+          <span class="mr-1 hidden sm:inline">Next</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</template>

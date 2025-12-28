@@ -1,0 +1,32 @@
+{
+    "name": "@kikiloaw/simple-table",
+    "version": "1.0.0",
+    "description": "A lightweight, dependency-light DataTable component for Vue 3 with Tailwind CSS",
+    "main": "src/index.js",
+    "module": "src/index.js",
+    "types": "src/index.d.ts",
+    "files": [
+        "src"
+    ],
+    "keywords": [
+        "vue",
+        "vue3",
+        "datatable",
+        "table",
+        "tailwind",
+        "pagination",
+        "sorting",
+        "filtering"
+    ],
+    "author": "Ghandi Galila",
+    "license": "MIT",
+    "peerDependencies": {
+        "vue": "^3.0.0",
+        "@vueuse/core": "^10.0.0 || ^11.0.0 || ^12.0.0",
+        "@inertiajs/vue3": "^1.0.0 || ^2.0.0"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/kikiloaw/simple-table.git"
+    }
+}
