@@ -5,6 +5,35 @@ All notable changes to SimpleTable will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2025-12-30
+
+### Added
+- **Auto-Numbering for Columns**: Display sequential row numbers
+  - Add `autonumber: true` to column definition
+  - Displays 1, 2, 3... for each data row
+  - Skips group headers automatically
+  - Pagination-aware (page 2 shows 11, 12, 13... with 10 per page)
+  - Perfect for sequential numbering regardless of actual IDs
+  
+- **Native Group Headers Support**: Full-width group header rows
+  - Use `_isGroupHeader: true` flag in row data
+  - Renders as single cell with `colspan` spanning all columns
+  - Seamless integration with row striping
+  - Perfect for organizing data by category, date, status, etc.
+  
+- **`beforeRender` Callback**: Transform data before rendering
+  - Accepts function: `(rows: any[]) => any[]`
+  - Perfect for data transformation, formatting, or adding computed properties
+  - Ideal for programmatically inserting group headers
+  - Works with both server-side and client-side data
+  - Called after filtering, sorting, and pagination
+
+### Fixed
+- **Row Striping**: Corrected alternating row colors to work with all row types
+  - Group headers now properly participate in row striping
+  - Visual continuity maintained across headers and data rows
+  - No more duplicate colors for consecutive rows
+
 ## [1.0.1] - 2025-12-29
 
 ### Changed

@@ -26,6 +26,7 @@ interface Props {
     class?: string
     fixed?: boolean // 'left' or 'right' could be added later, assuming 'right' for actions usually
     width?: string
+    autonumber?: boolean // If true, display auto-incremented row numbers instead of data
   }[]
   mode?: 'auto' | 'server' | 'client'
   protocol?: 'laravel' | 'datatables' // API request/response format
@@ -33,6 +34,9 @@ interface Props {
   perPage?: number
   pageSizes?: any[] // number[] or { label: string, value: number }[]
   fetchUrl?: string
+  
+  // Callbacks
+  beforeRender?: (rows: any[]) => any[] // Transform data before rendering
   
   // Cache Props
   enableCache?: boolean // If true, cache responses by page/search/sort to avoid redundant requests
@@ -189,6 +193,7 @@ const serverMeta = computed(() => {
     return {
         current_page: meta.current_page ?? 1,
         last_page: meta.last_page ?? 1,
+        per_page: meta.per_page ?? currentPerPage.value,
         from: meta.from ?? 0,
         to: meta.to ?? 0,
         total: meta.total ?? 0,
@@ -198,39 +203,52 @@ const serverMeta = computed(() => {
 
 // -- Computed: Data Normalization --
 const tableData = computed(() => {
+  let result: any[] = []
+  
   if (isServerSide.value) {
     const d = internalData.value as any
-    return d.data || []
+    result = d.data || []
+  } else {
+    // Client Side Processing
+    let items = [...(internalData.value as any[])]
+
+    // 1. Filter
+    if (searchQuery.value) {
+      const lowerQuery = searchQuery.value.toLowerCase()
+      items = items.filter((item) =>
+        Object.values(item).some((val) =>
+          String(val).toLowerCase().includes(lowerQuery)
+        )
+      )
+    }
+
+    // 2. Sort
+    if (sortColumn.value) {
+      items.sort((a, b) => {
+        const valA = a[sortColumn.value]
+        const valB = b[sortColumn.value]
+        if (valA === valB) return 0
+        const comparison = valA > valB ? 1 : -1
+        return sortDirection.value === 'asc' ? comparison : -comparison
+      })
+    }
+
+    // 3. Paginate
+    const start = (currentPage.value - 1) * currentPerPage.value
+    const end = start + currentPerPage.value
+    result = items.slice(start, end)
   }
   
-  // Client Side Processing
-  let items = [...(internalData.value as any[])]
-
-  // 1. Filter
-  if (searchQuery.value) {
-    const lowerQuery = searchQuery.value.toLowerCase()
-    items = items.filter((item) =>
-      Object.values(item).some((val) =>
-        String(val).toLowerCase().includes(lowerQuery)
-      )
-    )
+  // Apply beforeRender callback if provided
+  if (props.beforeRender && typeof props.beforeRender === 'function') {
+    const transformed = props.beforeRender(result)
+    // Ensure callback returns an array
+    if (Array.isArray(transformed)) {
+      result = transformed
+    }
   }
-
-  // 2. Sort
-  if (sortColumn.value) {
-    items.sort((a, b) => {
-      const valA = a[sortColumn.value]
-      const valB = b[sortColumn.value]
-      if (valA === valB) return 0
-      const comparison = valA > valB ? 1 : -1
-      return sortDirection.value === 'asc' ? comparison : -comparison
-    })
-  }
-
-  // 3. Paginate
-  const start = (currentPage.value - 1) * currentPerPage.value
-  const end = start + currentPerPage.value
-  return items.slice(start, end)
+  
+  return result
 })
 
 const totalPages = computed(() => {
@@ -532,6 +550,38 @@ function handlePageSizeChange(size: any) {
     fetchData()
 }
 
+// Get row class with simple alternating stripes (all rows)
+function getRowClass(row: any, idx: number) {
+  // Alternate: index 0 = white, index 1 = gray, index 2 = white, etc.
+  const isOdd = idx % 2 === 0  // Changed: even index = odd color (white)
+  return [
+    { [props.oddRowColor]: isOdd, [props.evenRowColor]: !isOdd },
+    row._isGroupHeader ? '' : props.hoverColor  // No hover on headers
+  ]
+}
+
+// Get row number for auto-numbering (excluding group headers)
+function getRowNumber(idx: number): number {
+  // Count only data rows before this index
+  let dataRowCount = 0
+  for (let i = 0; i <= idx; i++) {
+    if (!tableData.value[i]?._isGroupHeader) {
+      dataRowCount++
+    }
+  }
+  
+  // Add offset for pagination
+  if (isServerSide.value) {
+    const currentPage = serverMeta.value?.current_page || 1
+    const perPage = serverMeta.value?.per_page || currentPerPage.value
+    const offset = (currentPage - 1) * perPage
+    return offset + dataRowCount
+  }
+  
+  // Client-side: just return the count
+  return dataRowCount
+}
+
 function handlePageChange(page: number) {
   if (page < 1 || page > totalPages.value) return
   
@@ -706,21 +756,38 @@ function getCellStyle(col: any) {
                 v-for="(row, idx) in tableData" 
                 :key="idx"
                 class="group"
-                :class="[{ [evenRowColor]: Number(idx) % 2 === 0, [oddRowColor]: Number(idx) % 2 !== 0 }, hoverColor]"
+                :class="getRowClass(row, idx)"
             >
-              <TableCell
-                v-for="(col, cIdx) in columns"
-                :key="col.key"
-                :class="getCellClass(col, cIdx, columns.length, Number(idx))"
-                :style="getCellStyle(col)"
-              >
-                <!-- Scoped Slot for custom cell rendering -->
-                 <div>
-                    <slot :name="`cell-${col.key}`" :row="row">
-                    {{ row[col.key] }}
-                    </slot>
-                 </div>
-              </TableCell>
+              <!-- Group Header Row: Single cell spanning all columns -->
+              <template v-if="row._isGroupHeader">
+                <TableCell :colspan="columns.length" class="border-b border-gray-200">
+                  <div class="px-2 py-2 font-semibold text-gray-700 text-sm uppercase tracking-wide">
+                    {{ row._groupTitle }}
+                  </div>
+                </TableCell>
+              </template>
+              
+              <!-- Regular Data Row: Individual cells -->
+              <template v-else>
+                <TableCell
+                  v-for="(col, cIdx) in columns"
+                  :key="col.key"
+                  :class="getCellClass(col, cIdx, columns.length, idx)"
+                  :style="getCellStyle(col)"
+                >
+                  <!-- Auto-numbering or custom cell rendering -->
+                   <div>
+                      <template v-if="col.autonumber">
+                        {{ getRowNumber(idx) }}
+                      </template>
+                      <template v-else>
+                        <slot :name="`cell-${col.key}`" :row="row">
+                        {{ row[col.key] }}
+                        </slot>
+                      </template>
+                   </div>
+                </TableCell>
+              </template>
             </TableRow>
           </template>
           <TableRow v-else>

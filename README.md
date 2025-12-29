@@ -212,6 +212,14 @@ const columns = [
     label: 'Email' 
   },
   
+  // Auto-numbering (row numbers instead of data)
+  {
+    key: 'id',
+    label: '#',
+    autonumber: true,
+    width: '80px'
+  },
+  
   // Sticky actions column (always visible)
   { 
     key: 'actions', 
@@ -232,6 +240,50 @@ Use custom sort keys when:
 ---
 
 ## 🎨 Features
+
+### Auto-Numbering
+
+**Display sequential row numbers instead of actual data:**
+
+```vue
+const columns = [
+  { 
+    key: 'id', 
+    label: '#', 
+    autonumber: true,
+    width: '80px'
+  },
+  // ... other columns
+]
+```
+
+**Features:**
+- ✅ Displays 1, 2, 3, 4... for each data row
+- ✅ Skips group headers (only counts data rows)
+- ✅ Pagination-aware: Page 2 shows 11, 12, 13... (with 10 per page)
+- ✅ Overrides actual column data
+- ✅ Works with both server-side and client-side modes
+
+**Example:**
+```
+┌────┬──────────────────┬─────────┐
+│ #  │ Name             │ Status  │
+├────┼──────────────────┼─────────┤
+│ ACTIVE USERS                    │ ← Header (not counted)
+│ 1  │ John Doe         │ Active  │
+│ 2  │ Jane Smith       │ Active  │
+├────┴──────────────────┴─────────┤
+│ INACTIVE USERS                  │ ← Header (not counted)
+│ 3  │ Bob Johnson      │ Inactive│
+```
+
+**Perfect for:**
+- Sequential numbering regardless of actual IDs
+- User-friendly row references
+- Tables with group headers
+- Paginated lists with continuous numbering
+
+---
 
 ### Custom Sort Keys
 
@@ -455,6 +507,248 @@ const downloadCSV = (content, filename) => {
 - ✅ Custom filters or search
 - ✅ Integration with third-party libraries
 
+
+---
+
+### Group Headers
+
+**Organize your table data with full-width group headers:**
+
+```vue
+<script setup>
+const addGroupHeaders = (rows) => {
+  // Sort by category first
+  const sorted = [...rows].sort((a, b) => 
+    (a.category || '').localeCompare(b.category || '')
+  )
+  
+  const result = []
+  let currentCategory = null
+  
+  sorted.forEach(row => {
+    const category = row.category || 'Uncategorized'
+    
+    // When category changes, add a header row
+    if (category !== currentCategory) {
+      result.push({
+        _isGroupHeader: true,      // Special flag
+        _groupTitle: category,      // Header text
+        // Add empty values for all columns
+        ...Object.fromEntries(
+          Object.keys(row).map(key => [key, ''])
+        )
+      })
+      currentCategory = category
+    }
+    
+    result.push(row)
+  })
+  
+  return result
+}
+</script>
+
+<template>
+  <SimpleTable 
+    :columns="columns"
+    :before-render="addGroupHeaders"
+    odd-row-color="bg-gray-50"
+    even-row-color="bg-white"
+    fetch-url="/api/data"
+  />
+</template>
+```
+
+**Result:**
+```
+┌────────────────────────────────────────┐
+│ CATEGORY A                             │  ← Full-width header
+├─────┬──────────┬──────────┬────────────┤
+│ 1   │ Item 1   │ $100     │ Active     │
+│ 2   │ Item 2   │ $200     │ Active     │
+├─────┴──────────┴──────────┴────────────┤
+│ CATEGORY B                             │  ← Full-width header
+├─────┬──────────┬──────────┬────────────┤
+│ 3   │ Item 3   │ $150     │ Inactive   │
+```
+
+**How It Works:**
+1. Use `beforeRender` callback to transform data
+2. Insert rows with `_isGroupHeader: true` flag
+3. Component renders these as full-width cells with `colspan`
+4. Striping continues correctly across all rows
+
+**Grouping Examples:**
+
+```vue
+// Group by first letter
+const groupByLetter = (rows) => {
+  const sorted = [...rows].sort((a, b) => 
+    a.name.localeCompare(b.name)
+  )
+  
+  const result = []
+  let currentLetter = null
+  
+  sorted.forEach(row => {
+    const letter = row.name.charAt(0).toUpperCase()
+    
+    if (letter !== currentLetter) {
+      result.push({
+        _isGroupHeader: true,
+        _groupTitle: letter,
+      })
+      currentLetter = letter
+    }
+    
+    result.push(row)
+  })
+  
+  return result
+}
+
+// Group by date range
+const groupByDate = (rows) => {
+  const sorted = [...rows].sort((a, b) => 
+    new Date(b.created_at) - new Date(a.created_at)
+  )
+  
+  const result = []
+  let currentMonth = null
+  
+  sorted.forEach(row => {
+    const month = new Date(row.created_at).toLocaleDateString('en', { 
+      year: 'numeric', 
+      month: 'long' 
+    })
+    
+    if (month !== currentMonth) {
+      result.push({
+        _isGroupHeader: true,
+        _groupTitle: month,
+      })
+      currentMonth = month
+    }
+    
+    result.push(row)
+  })
+  
+  return result
+}
+
+// Group by status
+const groupByStatus = (rows) => {
+  const active = rows.filter(r => r.is_active)
+  const inactive = rows.filter(r => !r.is_active)
+  
+  return [
+    { _isGroupHeader: true, _groupTitle: 'Active Items' },
+    ...active,
+    { _isGroupHeader: true, _groupTitle: 'Inactive Items' },
+    ...inactive
+  ]
+}
+```
+
+**Styling Group Headers:**
+
+The component applies these classes to group header rows:
+- `border-b border-gray-200` - Bottom border
+- Font styling via the inner div
+- Row striping colors (odd-row-color / even-row-color)
+
+You can customize by overriding row colors:
+```vue
+<SimpleTable 
+  :before-render="addGroupHeaders"
+  odd-row-color="bg-blue-50"
+  even-row-color="bg-white"
+/>
+```
+
+---
+
+### Data Transformation (beforeRender)
+
+**Transform data before it's rendered in the table:**
+
+```vue
+<script setup>
+import dayjs from 'dayjs'
+
+const transformData = (rows) => {
+  return rows.map(row => ({
+    ...row,
+    // Add computed properties
+    full_name: `${row.first_name} ${row.last_name}`,
+    
+    // Format dates
+    created_at_formatted: dayjs(row.created_at).format('MMM D, YYYY'),
+    
+    // Add status badge classes
+    status_class: row.status === 'active' ? 'text-green-600' : 'text-red-600',
+    
+    // Transform arrays
+    tags_joined: row.tags?.join(', ') || 'No tags',
+    
+    // Add custom logic
+    is_urgent: row.priority > 8,
+    days_since_created: dayjs().diff(dayjs(row.created_at), 'days')
+  }))
+}
+</script>
+
+<template>
+  <SimpleTable 
+    :columns="columns" 
+    fetch-url="/api/users"
+    :before-render="transformData"
+  />
+</template>
+```
+
+**When to Use:**
+- ✅ Format dates, numbers, or currencies
+- ✅ Combine multiple fields into one
+- ✅ Add computed properties
+- ✅ Transform nested objects to flat properties
+- ✅ Add CSS classes based on data
+- ✅ Filter unwanted rows (return modified array)
+
+**Example - Adding Full Names:**
+```vue
+<script setup>
+const columns = [
+  { key: 'full_name', label: 'Name' },  // Not in API response
+  { key: 'email', label: 'Email' },
+  { key: 'created_at_formatted', label: 'Joined' }
+]
+
+const beforeRender = (rows) => {
+  return rows.map(row => ({
+    ...row,
+    full_name: `${row.first_name} ${row.last_name}`,
+    created_at_formatted: new Date(row.created_at).toLocaleDateString()
+  }))
+}
+</script>
+
+<template>
+  <SimpleTable 
+    :columns="columns" 
+    :before-render="beforeRender"
+    fetch-url="/api/users" 
+  />
+</template>
+```
+
+**Execution Order:**
+1. Data fetched from API
+2. Filtering & Searching (client-side only)
+3. Sorting (client-side only)
+4. Pagination (client-side only)
+5. **`beforeRender` called** ← Your transformation here
+6. Rows rendered in table
 
 ---
 
