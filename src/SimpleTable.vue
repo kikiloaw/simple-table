@@ -48,6 +48,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   data: () => [],
+  columns: () => [],
   mode: 'auto',
   protocol: 'laravel',
   searchable: true,
@@ -162,14 +163,6 @@ const internalData = ref(props.data)
 
 watch(() => props.data, (newVal) => {
     internalData.value = newVal
-}, { deep: true })
-
-// Watch queryParams and refetch when they change
-watch(() => props.queryParams, () => {
-    if (isServerSide.value) {
-        currentPage.value = 1 // Reset to first page when filters change
-        fetchData()
-    }
 }, { deep: true })
 
 // -- Computed: Mode Detection --

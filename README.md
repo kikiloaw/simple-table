@@ -263,19 +263,22 @@ const columns = [
 
 **Use Case:** Add filters like status, department, date range, etc.
 
+**Performance:** Query parameters are sent with every request but **do NOT auto-refetch**. This prevents unnecessary API calls when you have multiple filters. Call `refresh()` manually when ready.
+
 ```vue
 <script setup>
 import { ref } from 'vue'
 
+const tableRef = ref()
 const filters = ref({
   status: 'active',
   department_id: 5,
   year: 2025
 })
 
-function updateStatus(newStatus) {
-  filters.value.status = newStatus
-  // Table automatically refetches!
+function applyFilters() {
+  // After setting all filters, manually refresh
+  tableRef.value?.refresh()
 }
 </script>
 
@@ -291,16 +294,21 @@ function updateStatus(newStatus) {
       <option :value="1">IT</option>
       <option :value="5">HR</option>
     </select>
+    
+    <button @click="applyFilters" class="btn">Apply Filters</button>
   </div>
 
   <!-- Table with filters -->
   <SimpleTable 
+    ref="tableRef"
     fetch-url="/api/users"
     :columns="columns"
     :query-params="filters"
   />
 </template>
 ```
+
+**Important:** Query parameters are **NOT automatically watched**. This prevents multiple API calls when you have many filters. Call `tableRef.value?.refresh()` manually when you want to refetch.
 
 **API Request:**
 ```
@@ -379,24 +387,74 @@ function handleCreate() {
 
 ### Custom Actions and Slots
 
-**Add custom buttons to the toolbar:**
+**Add custom buttons to the toolbar with access to table data:**
 
 ```vue
-<SimpleTable :columns="columns" fetch-url="/api/users">
-  <template #actions="{ rows }">
-    <button @click="exportCustom(rows)" class="btn">
-      Custom Export
-    </button>
-    <button @click="bulkDelete(rows)" class="btn btn-danger">
-      Bulk Delete
-    </button>
-  </template>
-</SimpleTable>
+<script setup>
+import { Download, Printer, Trash } from 'lucide-vue-next'
+
+const handleExport = (type, rows) => {
+  console.log(`Exporting ${rows.length} rows as ${type}`)
+  
+  if (type === 'csv') {
+    const csv = rows.map(row => 
+      `${row.id},${row.name},${row.email}`
+    ).join('\n')
+    
+    downloadCSV(csv, 'export.csv')
+  }
+}
+
+const handleBulkDelete = (rows) => {
+  const ids = rows.map(r => r.id)
+  if (confirm(`Delete ${ids.length} items?`)) {
+    axios.delete('/api/bulk-delete', { data: { ids } })
+  }
+}
+
+const downloadCSV = (content, filename) => {
+  const blob = new Blob([content], { type: 'text/csv' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+}
+</script>
+
+<template>
+  <SimpleTable :columns="columns" fetch-url="/api/users">
+    <template #actions="{ rows, columns }">
+      <Button @click="handleExport('csv', rows)">
+        <Download class="mr-2 h-4 w-4" />
+        Export ({{ rows.length }})
+      </Button>
+      
+      <Button @click="handleExport('excel', rows)">
+        <Download class="mr-2 h-4 w-4" />
+        Excel
+      </Button>
+      
+      <Button @click="handleBulkDelete(rows)" variant="destructive">
+        <Trash class="mr-2 h-4 w-4" />
+        Bulk Delete
+      </Button>
+    </template>
+  </SimpleTable>
+</template>
 ```
 
-**Access to:**
-- `rows`: Currently visible data
-- `columns`: Column definitions
+**Slot Props:**
+- **`rows`**: Currently visible table data (array of objects)
+- **`columns`**: Column definitions (array of column config)
+
+**Use Cases:**
+- ✅ Custom export buttons (CSV, Excel, PDF)
+- ✅ Bulk actions (delete, update, approve)
+- ✅ Print functionality
+- ✅ Custom filters or search
+- ✅ Integration with third-party libraries
+
 
 ---
 

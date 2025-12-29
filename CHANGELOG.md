@@ -5,6 +5,17 @@ All notable changes to SimpleTable will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2025-12-29
+
+### Changed
+- **Query Parameters Behavior**: Removed automatic refetch on `queryParams` change
+  - Prevents multiple API calls when setting multiple filters
+  - Developers now manually call `tableRef.value?.refresh()` when ready
+  - Performance improvement for forms with many filters
+
+### Fixed
+- Reduced unnecessary API calls in multi-filter scenarios
+
 ## [1.0.0] - 2025-12-29
 
 ### Added

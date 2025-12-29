@@ -1,6 +1,6 @@
 {
     "name": "@kikiloaw/simple-table",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "A lightweight, dependency-light DataTable component for Vue 3 with Tailwind CSS",
     "main": "src/index.js",
     "module": "src/index.js",
@@ -27,6 +27,6 @@
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/kikiloaw/simple-table.git"
+        "url": "git+https://github.com/kikiloaw/simple-table.git"
     }
 }
