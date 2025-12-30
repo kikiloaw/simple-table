@@ -4,18 +4,29 @@ import { cn } from '@/lib/utils'
 
 const props = defineProps<{
   class?: HTMLAttributes['class']
+  style?: any
+  padding?: string
+  height?: string
 }>()
 
 const delegatedProps = computed(() => {
-  const { class: _, ...delegated } = props
+  const { class: _, padding: __, height: ___, style: ____, ...delegated } = props
 
   return delegated
+})
+
+const cellStyle = computed(() => {
+  const baseStyle = (props as any).style || {}
+  const heightStyle = props.height ? { minHeight: props.height } : {}
+  
+  return { ...baseStyle, ...heightStyle }
 })
 </script>
 
 <template>
   <td
-    :class="cn('p-4 align-middle [&:has([role=checkbox])]:pr-0', props.class)"
+    :class="cn(props.padding || 'p-2', 'align-middle [&:has([role=checkbox])]:pr-0', props.class)"
+    :style="cellStyle"
     v-bind="delegatedProps"
   >
     <slot />

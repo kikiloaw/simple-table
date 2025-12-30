@@ -5,6 +5,28 @@ All notable changes to SimpleTable will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2025-12-30
+
+### Added
+- **Row Height Control**: New `rowHeight` prop for precise vertical sizing
+  - Set exact pixel height for all table rows (e.g., `:row-height="50"`)
+  - Defaults to `38px` (compact and readable)
+  - Automatically adjusts cell padding based on height
+  - Works on header rows, data rows, and group headers
+- **Static Data Documentation**: Comprehensive guide for client-side usage
+  - Added new "Using Predefined/Static Data" section to README
+  - Clear examples for setup, props, and common pitfalls
+  - Best practices for performance and reactivity
+- **Improved Compact Layout**: Tighter default spacing
+  - Reduced default cell padding to `p-2` (8px)
+  - Reduced default header height to `38px`
+
+### Fixed
+- **Table Row Height Styling**: Fixed styling conflict where `min-height` on cells was ignored
+  - Moved height application to `TableRow` (`<tr>`) elements for reliable CSS behavior
+  - Fixed conflict between column width styles and height styles
+- **Page Size Reactivity**: Fixed issue where initial page size didn't match options
+
 ## [1.0.2] - 2025-12-30
 
 ### Added

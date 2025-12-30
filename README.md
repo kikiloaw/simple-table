@@ -87,6 +87,307 @@ public function getData(Request $request)
 
 ---
 
+## 📦 Using Predefined/Static Data
+
+**Want to use static data instead of an API?** SimpleTable handles this perfectly in client-side mode!
+
+### Basic Setup
+
+```vue
+<script setup lang="ts">
+import SimpleTable from '@kikiloaw/simple-table'
+
+// Define your static data
+const data = [
+  { id: 1, name: 'John Doe', email: 'john@example.com', status: 'active' },
+  { id: 2, name: 'Jane Smith', email: 'jane@example.com', status: 'active' },
+  { id: 3, name: 'Bob Johnson', email: 'bob@example.com', status: 'inactive' },
+  // ... more rows
+]
+
+const columns = [
+  { key: 'id', label: '#', sortable: true, width: '80px' },
+  { key: 'name', label: 'Name', sortable: true },
+  { key: 'email', label: 'Email', sortable: true },
+  { key: 'status', label: 'Status', width: '120px' }
+]
+
+const pageSizes = [
+  { label: '50 Rows', value: 50 },
+  { label: '100 Rows', value: 100 },
+]
+</script>
+
+<template>
+  <SimpleTable 
+    :data="data"
+    :columns="columns" 
+    :page-sizes="pageSizes"
+    :per-page="50"
+    mode="client"
+    searchable
+  />
+</template>
+```
+
+### Key Props for Static Data
+
+| Prop | Required | Default | Description |
+|------|----------|---------|-------------|
+| `:data` | **Yes** | `[]` | Your static array of objects |
+| `mode` | **Yes** | `'auto'` | Set to `"client"` for static data |
+| `:per-page` | Recommended | `10` | Initial page size (should match first option in pageSizes) |
+| `:page-sizes` | Optional | `[10,20,30,50,100]` | Available page size options |
+
+### ⚠️ Common Pitfalls
+
+#### 1. **Don't Mix Static Data with `fetch-url`**
+
+❌ **Wrong:**
+```vue
+<!-- This will ignore your static data! -->
+<SimpleTable 
+  :data="myData"
+  fetch-url="/api/users"  <!-- ❌ Conflicts with :data -->
+/>
+```
+
+✅ **Correct:**
+```vue
+<!-- Remove fetch-url when using static data -->
+<SimpleTable 
+  :data="myData"
+  mode="client"
+/>
+```
+
+#### 2. **Set Initial Page Size to Match Your Options**
+
+❌ **Wrong:**
+```vue
+<!-- Component defaults to 10, but you only have 50/100 options -->
+<SimpleTable 
+  :data="data"
+  :page-sizes="[{ label: '50 Rows', value: 50 }, { label: '100 Rows', value: 100 }]"
+  <!-- ❌ Will show "10 Rows" which doesn't exist in dropdown -->
+/>
+```
+
+✅ **Correct:**
+```vue
+<SimpleTable 
+  :data="data"
+  :page-sizes="[50, 100]"
+  :per-page="50"  <!-- ✅ Matches first option -->
+/>
+```
+
+#### 3. **Columns Must Match Your Data Structure**
+
+❌ **Wrong:**
+```vue
+<script setup>
+const data = [
+  { CourseCode: 'CS101', Description: 'Intro to CS', Units: 3 }
+]
+
+const columns = [
+  { key: 'course_code', label: 'Code' },  // ❌ Wrong key!
+  { key: 'description', label: 'Name' },  // ❌ Wrong key!
+]
+</script>
+```
+
+✅ **Correct:**
+```vue
+<script setup>
+const data = [
+  { CourseCode: 'CS101', Description: 'Intro to CS', Units: 3 }
+]
+
+const columns = [
+  { key: 'CourseCode', label: 'Code' },    // ✅ Matches data
+  { key: 'Description', label: 'Name' },   // ✅ Matches data
+  { key: 'Units', label: 'Units' },
+]
+</script>
+```
+
+### Features Available in Client-Side Mode
+
+✅ **Works:**
+- Client-side searching (filters through your data array)
+- Client-side sorting (by sortable columns)
+- Client-side pagination (chunks your data into pages)
+- Data transformation via `beforeRender`
+- Custom cell rendering
+- Group headers
+- Auto-numbering
+
+❌ **Not Available:**
+- Server-side sorting (data is sorted locally)
+- API caching (no API calls)
+- Query parameters (no server to send them to)
+
+### Complete Example with Group Headers
+
+```vue
+<script setup lang="ts">
+import SimpleTable from '@kikiloaw/simple-table'
+
+// Static course data
+const data = [
+  { 
+    CourseCode: 'CS101', 
+    Description: 'Intro to Computer Science', 
+    Units: 3,
+    Grade: 'A',
+    semester: '1st Semester, 2023-2024'
+  },
+  { 
+    CourseCode: 'MATH101', 
+    Description: 'Calculus I', 
+    Units: 4,
+    Grade: 'B+',
+    semester: '1st Semester, 2023-2024'
+  },
+  { 
+    CourseCode: 'CS102', 
+    Description: 'Data Structures', 
+    Units: 3,
+    Grade: 'A-',
+    semester: '2nd Semester, 2023-2024'
+  },
+]
+
+const columns = [
+  { key: 'CourseCode', label: 'Course Code', sortable: true, width: '150px' },
+  { key: 'Description', label: 'Description', sortable: true, width: '300px' },
+  { key: 'Units', label: 'Units', width: '80px' },
+  { key: 'Grade', label: 'Grade', sortable: true, width: '80px' },
+]
+
+// Add group headers by semester
+const addGroupHeaders = (rows) => {
+  // DON'T sort here if your data is already in the correct order!
+  // Sorting will override your predefined order
+  
+  const result = []
+  let currentSemester = null
+  
+  rows.forEach(row => {
+    const semester = row.semester || 'No Semester'
+    
+    // When semester changes, add a header row
+    if (semester !== currentSemester) {
+      result.push({
+        _isGroupHeader: true,
+        _groupTitle: semester,
+        // Empty values for all columns
+        CourseCode: '',
+        Description: semester,
+        Units: '',
+        Grade: '',
+      })
+      currentSemester = semester
+    }
+    
+    result.push(row)
+  })
+  
+  return result
+}
+</script>
+
+<template>
+  <SimpleTable 
+    :data="data"
+    :columns="columns" 
+    :page-sizes="[50, 100]"
+    :per-page="50"
+    :before-render="addGroupHeaders"
+    mode="client"
+    searchable
+    odd-row-color="bg-gray-50"
+    even-row-color="bg-white"
+    hover-color="hover:bg-green-100"
+  />
+</template>
+
+### 📏 Row Height Control
+
+Control the exact height of your table rows with the `rowHeight` prop:
+
+```vue
+<template>
+  <SimpleTable 
+    :data="data"
+    :columns="columns"
+    :row-height="38"  <!-- Rows will be exactly 38px tall -->
+  />
+</template>
+```
+
+**How it works:**
+- Sets the `height` style on both header and data rows
+- Automatically adjusts cell padding based on the height
+- Default: `38px` (compact and readable)
+
+**Recommended Values:**
+
+| Height | Padding | Use Case |
+|--------|---------|----------|
+| `30-36px` | `p-2` (8px) | **Extra compact** - Maximum rows visible, dense data |
+| `38-42px` | `p-2` (8px) | **Standard** - Good balance (default: 38px) |
+| `44-55px` | `p-3` (12px) | **Comfortable** - Easy to read, spacious |
+| `56px+` | `p-4` (16px) | **Very spacious** - Accessibility-friendly, large text |
+
+**Examples:**
+
+```vue
+<!-- Ultra compact for dashboards -->
+<SimpleTable :row-height="32" />
+
+<!-- Default - balanced -->
+<SimpleTable :row-height="38" />  <!-- or omit for default -->
+
+<!-- Comfortable reading -->
+<SimpleTable :row-height="48" />
+
+<!-- Accessibility-friendly -->
+<SimpleTable :row-height="60" />
+
+<!-- No prop = uses default 38px -->
+<SimpleTable :data="data" :columns="columns" />
+```
+
+**Padding Auto-Adjustment:**
+
+The component automatically adjusts internal padding:
+- **< 44px**: Uses `p-2` (8px) - Compact
+- **44-55px**: Uses `p-3` (12px) - Normal  
+- **56px+**: Uses `p-4` (16px) - Comfortable
+
+### 💡 Best Practices
+
+1. **Data Order Preservation**
+   - If your data is already sorted correctly, **don't sort it again** in `beforeRender`
+   - Let users sort by clicking column headers if needed
+
+2. **Performance**
+   - Client-side mode works great for **< 1,000 rows**
+   - For larger datasets, consider server-side mode with `fetch-url`
+
+3. **Reactivity**
+   - Use `ref()` or `reactive()` if your data changes
+   - The table will automatically update when data changes
+
+4. **Page Size Options**
+   - Keep options reasonable: `[10, 25, 50, 100]`
+   - Set `:per-page` to match your first option
+
+---
+
 ## 📖 Table of Contents
 
 - [Core Concepts](#-core-concepts)

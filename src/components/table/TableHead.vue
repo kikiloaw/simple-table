@@ -4,10 +4,12 @@ import { cn } from '@/lib/utils'
 
 const props = defineProps<{
   class?: HTMLAttributes['class']
+  height?: string
+  padding?: string
 }>()
 
 const delegatedProps = computed(() => {
-  const { class: _, ...delegated } = props
+  const { class: _, height: __, padding: ___, ...delegated } = props
 
   return delegated
 })
@@ -17,7 +19,9 @@ const delegatedProps = computed(() => {
   <th
     :class="
       cn(
-        'h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0',
+        props.height || 'h-[38px]',
+        props.padding || 'px-2',
+        'text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0',
         props.class,
       )
     "

@@ -45,6 +45,7 @@ interface Props {
   queryParams?: Record<string, any> // Additional parameters to send with every request (e.g., filters, user context)
   
   // Style Props
+  rowHeight?: number // Table row height in pixels (default: 38)
   oddRowColor?: string  // Tailwind color class, e.g. 'bg-white'
   evenRowColor?: string // Tailwind color class, e.g. 'bg-gray-50'
   hoverColor?: string   // Tailwind color class for hover, e.g. 'hover:bg-gray-100'. If passed, we'll try to apply group-hover for fixed cols.
@@ -60,6 +61,7 @@ const props = withDefaults(defineProps<Props>(), {
   queryParams: () => ({}),
   perPage: 10,
   pageSizes: () => [10, 20, 30, 50, 100],
+  rowHeight: 38,
   oddRowColor: 'bg-background',
   evenRowColor: 'bg-background',
   hoverColor: 'hover:bg-muted/50'
@@ -86,6 +88,37 @@ const normalizedPageSizes = computed(() => {
     
     // Fallback?
     return []
+})
+
+// -- Computed: Row height-based sizing --
+const densityConfig = computed(() => {
+  const height = props.rowHeight || 38
+  
+  // Calculate padding based on height
+  // For 38px height: use p-2 (8px)
+  // For 48px height: use p-3 (12px)  
+  // For 56px+ height: use p-4 (16px)
+  let cellPadding = 'p-2'
+  let headerPadding = 'px-2'
+  let groupHeaderPadding = 'py-1'
+  
+  if (height >= 56) {
+    cellPadding = 'p-4'
+    headerPadding = 'px-4'
+    groupHeaderPadding = 'py-2'
+  } else if (height >= 44) {
+    cellPadding = 'p-3'
+    headerPadding = 'px-3'
+    groupHeaderPadding = 'py-1.5'
+  }
+  
+  return {
+    cellPadding,
+    cellHeight: `${height}px`,
+    headerHeight: `h-[${height}px]`,
+    headerPadding,
+    groupHeaderPadding
+  }
 })
 
 
@@ -722,12 +755,14 @@ function getCellStyle(col: any) {
       <!-- We add min-w-full to Table to ensure it stretches -->
       <Table class="min-w-full table-fixed"> 
         <TableHeader>
-          <TableRow>
+          <TableRow :style="{ height: densityConfig.cellHeight }">
             <TableHead
               v-for="(col, idx) in columns"
               :key="col.key"
               :class="getCellClass(col, idx, columns.length)"
               :style="getCellStyle(col)"
+              :height="densityConfig.headerHeight"
+              :padding="densityConfig.headerPadding"
             >
               <div
                 v-if="col.sortable"
@@ -757,11 +792,12 @@ function getCellStyle(col: any) {
                 :key="idx"
                 class="group"
                 :class="getRowClass(row, idx)"
+                :style="{ height: densityConfig.cellHeight }"
             >
               <!-- Group Header Row: Single cell spanning all columns -->
               <template v-if="row._isGroupHeader">
                 <TableCell :colspan="columns.length" class="border-b border-gray-200">
-                  <div class="px-2 py-2 font-semibold text-gray-700 text-sm uppercase tracking-wide">
+                  <div :class="['px-2', densityConfig.groupHeaderPadding, 'font-semibold text-gray-700 text-sm uppercase tracking-wide']">
                     {{ row._groupTitle }}
                   </div>
                 </TableCell>
@@ -774,6 +810,8 @@ function getCellStyle(col: any) {
                   :key="col.key"
                   :class="getCellClass(col, cIdx, columns.length, idx)"
                   :style="getCellStyle(col)"
+                  :padding="densityConfig.cellPadding"
+                  :height="densityConfig.cellHeight"
                 >
                   <!-- Auto-numbering or custom cell rendering -->
                    <div>
@@ -790,7 +828,7 @@ function getCellStyle(col: any) {
               </template>
             </TableRow>
           </template>
-          <TableRow v-else>
+          <TableRow v-else :style="{ height: densityConfig.cellHeight }">
             <TableCell :colspan="columns.length" class="h-24 text-center">
               No results.
             </TableCell>
