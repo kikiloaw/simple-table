@@ -1055,28 +1055,73 @@ const beforeRender = (rows) => {
 
 ### Custom Cell Rendering
 
-**Customize how data is displayed in specific columns:**
+**Customize how data is displayed in any column using named slots.**
+
+**Slot Syntax:** `#cell-{columnKey}="{ row }"`
+
+#### 1. Conditional Styling & Badges
 
 ```vue
-<SimpleTable :columns="columns" fetch-url="/api/users">
-  <!-- Custom status badge -->
-  <template #cell-status="{ row }">
+<SimpleTable :columns="columns" :data="data">
+  <!-- Status Badge with Conditional Color -->
+  <template #cell-is_active="{ row }">
     <span 
-      :class="row.status === 'active' ? 'badge-success' : 'badge-danger'"
+      v-if="!row._isGroupHeader"
+      :class="row.is_active ? 'text-green-600 font-bold' : 'text-red-600'"
     >
-      {{ row.status }}
+      {{ row.is_active ? 'Active' : 'Inactive' }}
     </span>
-  </template>
-  
-  <!-- Custom actions column -->
-  <template #cell-actions="{ row }">
-    <button @click="edit(row)" class="btn-sm">Edit</button>
-    <button @click="delete(row)" class="btn-sm btn-danger">Delete</button>
   </template>
 </SimpleTable>
 ```
 
-**Slot Naming:** `#cell-{columnKey}`
+#### 2. Rendering Lists/Tags
+
+```vue
+<SimpleTable :columns="columns" :data="data">
+  <!-- Loop through array data in a cell -->
+  <template #cell-tags="{ row }">
+    <div v-if="!row._isGroupHeader" class="flex gap-1 flex-wrap">
+      <span 
+        v-for="tag in row.tags" 
+        :key="tag.id"
+        class="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded"
+      >
+        {{ tag.name }}
+      </span>
+    </div>
+  </template>
+</SimpleTable>
+```
+
+#### 3. Action Buttons
+
+```vue
+<SimpleTable :columns="columns" :data="data">
+  <template #cell-actions="{ row }">
+    <div v-if="!row._isGroupHeader" class="flex gap-2">
+      <Button variant="outline" size="sm" @click="edit(row)">Edit</Button>
+      <Button variant="destructive" size="sm" @click="remove(row)">Delete</Button>
+    </div>
+  </template>
+</SimpleTable>
+```
+
+#### ⚠️ Important: Handling Group Headers
+
+If you use **Group Headers**, your custom slots will technically be available for the header row too (though hidden by the colspan). To avoid errors accessing properties that don't exist on the header row, **always check `!row._isGroupHeader`**.
+
+```vue
+<template #cell-price="{ row }">
+  <!-- ❌ Bad: Might crash on header row where row.price is undefined -->
+  ${{ row.price.toFixed(2) }}
+  
+  <!-- ✅ Good: Safe check -->
+  <span v-if="!row._isGroupHeader">
+    ${{ row.price?.toFixed(2) }}
+  </span>
+</template>
+```
 
 ---
 

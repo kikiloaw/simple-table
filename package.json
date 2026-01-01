@@ -1,6 +1,6 @@
 {
     "name": "@kikiloaw/simple-table",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "description": "A lightweight, dependency-light DataTable component for Vue 3 with Tailwind CSS",
     "main": "src/index.js",
     "module": "src/index.js",

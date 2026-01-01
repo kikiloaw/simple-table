@@ -5,6 +5,14 @@ All notable changes to SimpleTable will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-01-01
+
+### Added
+- **Advanced Cell Rendering Guide**: Expanded documentation for custom slots
+  - Added guide for conditional styling (e.g. status badges)
+  - Added patterns for handling Group Headers (`!row._isGroupHeader`)
+  - Added examples for rendering lists/tags within cells
+
 ## [1.0.3] - 2025-12-30
 
 ### Added
@@ -20,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Improved Compact Layout**: Tighter default spacing
   - Reduced default cell padding to `p-2` (8px)
   - Reduced default header height to `38px`
+
+  - Added guide for conditional conditional styling (e.g. status badges)
+  - Added patterns for handling Group Headers (`!row._isGroupHeader`)
+  - Added examples for rendering lists/tags within cells
 
 ### Fixed
 - **Table Row Height Styling**: Fixed styling conflict where `min-height` on cells was ignored
@@ -39,7 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   
 - **Native Group Headers Support**: Full-width group header rows
   - Use `_isGroupHeader: true` flag in row data
-  - Renders as single cell with `colspan` spanning all columns
+  - Renders as single cell +with `colspan` spanning all columns
   - Seamless integration with row striping
   - Perfect for organizing data by category, date, status, etc.
   
