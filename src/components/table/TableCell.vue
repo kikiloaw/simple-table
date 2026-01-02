@@ -7,6 +7,7 @@ const props = defineProps<{
   style?: any
   padding?: string
   height?: string
+  colspan?: number | string
 }>()
 
 const delegatedProps = computed(() => {

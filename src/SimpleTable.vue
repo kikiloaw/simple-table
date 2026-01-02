@@ -67,6 +67,8 @@ const props = withDefaults(defineProps<Props>(), {
   hoverColor: 'hover:bg-stone-200'
 })
 
+
+
 // ...
 
 // -- Computed: Page Sizes Normalization --
@@ -163,7 +165,7 @@ const densityConfig = computed(() => {
       </div>
 */
 
-const emit = defineEmits(['update:search', 'update:sort', 'page-change'])
+const emit = defineEmits(['update:search', 'update:sort', 'page-change', 'fetched'])
 
 // -- State --
 const searchQuery = ref('')
@@ -464,6 +466,7 @@ async function fetchData(params: any = {}) {
             }
             
             internalData.value = data
+            emit('fetched', data)
             
             // Store in cache if enabled
             if (props.enableCache) {
@@ -644,6 +647,8 @@ defineExpose({
     clearCache // expose cache clearing method
 })
 
+
+
 // -- Helper Styles --
 function getCellClass(col: any, index: number, totalCols: number, rowIndex: number = -1) {
     let classes = col.class || ''
@@ -799,7 +804,12 @@ function getCellStyle(col: any) {
               <!-- Group Header Row: Single cell spanning all columns -->
               <template v-if="row._isGroupHeader">
                 <TableCell :colspan="columns.length" class="border-b border-gray-200">
-                  <div :class="['px-2', densityConfig.groupHeaderPadding, 'font-semibold text-gray-700 text-sm uppercase tracking-wide']">
+                  <div :class="[
+                    'px-2', 
+                    densityConfig.groupHeaderPadding, 
+                    'font-semibold text-sm uppercase tracking-wide',
+                    row._groupTitleClass || 'text-gray-700'
+                  ]">
                     {{ row._groupTitle }}
                   </div>
                 </TableCell>

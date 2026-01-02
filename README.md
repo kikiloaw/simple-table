@@ -6,6 +6,8 @@
 [![Vue 3](https://img.shields.io/badge/Vue-3.x-brightgreen.svg)](https://vuejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
 
+> **🚀 Explore the Demo**: Check out the [SimpleTable Demo Repository](https://github.com/kikiloaw/simple-table-demo.git) for a complete documentation site with live server-side examples, seeding, and source code.
+
 ---
 
 ## ✨ Why SimpleTable?

@@ -5,6 +5,17 @@ All notable changes to SimpleTable will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-01-03
+
+### Added
+- **Exposed Methods**: `fetchData()` and `clearCache()` are now exposed via `defineExpose`, allowing parent components to trigger refreshes and clear cache programmatically.
+- **Events**: Added `fetched` event which emits the raw API response, enabling deep inspection/debugging or side-effects based on data load.
+- **Client-Side Grouping Example**: Added robust support for using `before-render` to transform flat API data into grouped data with headers on the client side.
+
+### Fixed
+- **Group Header Colspan**: Ensure group header rows correctly span all columns.
+- **Group Header Styling**: Ensure `_groupTitleClass` is correctly applied to the header cell.
+
 ## [1.0.6] - 2026-01-02
 
 ### Fixed
