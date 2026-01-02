@@ -5,6 +5,16 @@ All notable changes to SimpleTable will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2026-01-02
+
+### Changed
+- **Visual Refresh**: Updated default styling for a professional, sharp look
+- **Design Defaults**:
+  - **Bold Headers**: Table headers are now `font-bold` for better readability
+  - **Stone Palette**: Default colors updated to `bg-stone-100` (even rows) and `hover:bg-stone-200` (hover)
+  - **Row Borders**: Added explicit `border-stone-300` bottom borders to rows
+  - **Sharp Corners**: Removed rounded corners from table container, inputs, and selects ('corder dont make it round')
+
 ## [1.0.4] - 2026-01-01
 
 ### Added

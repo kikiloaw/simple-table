@@ -459,9 +459,9 @@ SimpleTable supports three data modes:
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
 | `queryParams` | Object | `{}` | Additional parameters for every request |
-| `oddRowColor` | String | `'bg-background'` | Tailwind class for odd rows |
-| `evenRowColor` | String | `'bg-background'` | Tailwind class for even rows |
-| `hoverColor` | String | `'hover:bg-muted/50'` | Tailwind class for row hover |
+| `oddRowColor` | String | `'bg-white'` | Tailwind class for odd rows |
+| `evenRowColor` | String | `'bg-stone-100'` | Tailwind class for even rows |
+| `hoverColor` | String | `'hover:bg-stone-200'` | Tailwind class for row hover |
 
 ---
 
@@ -1097,7 +1097,8 @@ const beforeRender = (rows) => {
 #### 3. Action Buttons
 
 ```vue
-<SimpleTable :columns="columns" :data="data">
+<SimpleTable :columns="
+" :data="data">
   <template #cell-actions="{ row }">
     <div v-if="!row._isGroupHeader" class="flex gap-2">
       <Button variant="outline" size="sm" @click="edit(row)">Edit</Button>

@@ -62,9 +62,9 @@ const props = withDefaults(defineProps<Props>(), {
   perPage: 10,
   pageSizes: () => [10, 20, 30, 50, 100],
   rowHeight: 38,
-  oddRowColor: 'bg-background',
-  evenRowColor: 'bg-background',
-  hoverColor: 'hover:bg-muted/50'
+  oddRowColor: 'bg-white',
+  evenRowColor: 'bg-stone-100',
+  hoverColor: 'hover:bg-stone-200'
 })
 
 // ...
@@ -720,7 +720,7 @@ function getCellStyle(col: any) {
                 <select 
                     :value="currentPerPage" 
                     @change="(e: any) => handlePageSizeChange(e.target.value)"
-                    class="h-10 w-[80px] appearance-none rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                    class="h-10 w-[80px] appearance-none border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
                 >
                     <option 
                         v-for="pageSize in normalizedPageSizes" 
@@ -741,7 +741,7 @@ function getCellStyle(col: any) {
                 v-model="searchQuery"
                 type="text"
                 placeholder="Search..."
-                class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 pl-8 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                class="flex h-10 w-full border border-input bg-background px-3 py-2 pl-8 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             />
         </div>
       </div>
@@ -751,7 +751,7 @@ function getCellStyle(col: any) {
     </div>
 
     <!-- Table -->
-    <div class="rounded-md border bg-background overflow-x-auto relative">
+    <div class="border bg-background overflow-x-auto relative">
       <!-- We add min-w-full to Table to ensure it stretches -->
       <Table class="min-w-full table-fixed"> 
         <TableHeader>
