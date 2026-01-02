@@ -5,6 +5,18 @@ All notable changes to SimpleTable will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.6] - 2026-01-02
+
+### Fixed
+- **Sticky Column Logic**: Fixed inverted background striping on fixed columns.
+- **Sticky Column Scrolling**: Switched table to `border-separate` mode to ensure sticky column borders don't vanish during scrolling.
+- **Flexible Fixed Columns**: Restored logic where the last column sticks to the right, and all other fixed columns stick to the left.
+- **Auto-Sizing**: Switched to `table-auto` so fixed columns (like Actions) automatically expand to fit their buttons without needing explicit widths.
+
+### Changed
+- **Sticky Column Visuals**: Added distinct `border-stone-300` and subtle shadow to fixed columns for better separation ("embossed" look).
+- **Documentation**: Added warnings that `width` must be explicitly set for `fixed` columns to work correctly.
+
 ## [1.0.5] - 2026-01-02
 
 ### Changed

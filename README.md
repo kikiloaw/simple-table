@@ -475,7 +475,7 @@ SimpleTable supports three data modes:
   label: 'Name',         // Required: Column header text
   sortable: true,        // Optional: Enable sorting
   width: '200px',        // Optional: Fixed column width
-  fixed: true,           // Optional: Sticky column (useful for actions)
+  fixed: true,           // Optional: Sticky column (left for first, right for last, others left). **Requires `width` to be set.**
   class: 'text-center'   // Optional: Additional CSS classes
 }
 ```

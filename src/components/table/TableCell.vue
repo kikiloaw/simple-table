@@ -25,7 +25,7 @@ const cellStyle = computed(() => {
 
 <template>
   <td
-    :class="cn(props.padding || 'p-2', 'align-middle [&:has([role=checkbox])]:pr-0', props.class)"
+    :class="cn(props.padding || 'p-2', 'border-b border-stone-300 align-middle [&:has([role=checkbox])]:pr-0', props.class)"
     :style="cellStyle"
     v-bind="delegatedProps"
   >

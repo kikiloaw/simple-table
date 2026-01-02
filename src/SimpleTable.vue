@@ -653,15 +653,13 @@ function getCellClass(col: any, index: number, totalCols: number, rowIndex: numb
     
     if (col.fixed) {
         // Sticky logic
-        const isLast = index === totalCols - 1
-        
-        let stickyClass = ''
-        if (isLast) {
-             // Right sticky: Stronger shadow to the left, and a left border
-             stickyClass = ' sticky right-0 z-10 shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.1)] border-l border-border/50'
+        let stickyClass = ' whitespace-nowrap' // Prevent content wrapping in sticky columns
+        if (index === totalCols - 1) {
+             // Last Column -> Right Sticky
+             stickyClass = ' sticky right-0 z-10 shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.1)] border-l border-stone-300'
         } else {
-            // Left sticky: Stronger shadow to the right, and a right border
-            stickyClass = ' sticky left-0 z-10 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.1)] border-r border-border/50'
+            // All other fixed columns -> Left Sticky
+            stickyClass = ' sticky left-0 z-10 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.1)] border-r border-stone-300'
         }
 
         // Determine background
@@ -670,8 +668,8 @@ function getCellClass(col: any, index: number, totalCols: number, rowIndex: numb
         
         if (rowIndex !== -1) {
             // Body Row
-            const isEven = rowIndex % 2 === 0
-            bgClass = isEven ? props.evenRowColor : props.oddRowColor
+            const isOdd = rowIndex % 2 === 0
+            bgClass = isOdd ? props.oddRowColor : props.evenRowColor
             
             // Should also match hover
             // If the row has a hover class (like hover:bg-muted), the sticky cell needs group-hover:bg-muted to match.
@@ -701,6 +699,10 @@ function getCellClass(col: any, index: number, totalCols: number, rowIndex: numb
 function getCellStyle(col: any) {
     if (col.width) {
         return { width: col.width, minWidth: col.width, maxWidth: col.width }
+    }
+    // Smart default: If fixed but no width, force a safe width (e.g. 100px) to ensure background covers content
+    if (col.fixed) {
+        return { width: '100px', minWidth: '100px' }
     }
     return {}
 }
@@ -753,7 +755,7 @@ function getCellStyle(col: any) {
     <!-- Table -->
     <div class="border bg-background overflow-x-auto relative">
       <!-- We add min-w-full to Table to ensure it stretches -->
-      <Table class="min-w-full table-fixed"> 
+      <Table class="min-w-full table-auto"> 
         <TableHeader>
           <TableRow :style="{ height: densityConfig.cellHeight }">
             <TableHead

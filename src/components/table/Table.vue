@@ -16,7 +16,7 @@ const delegatedProps = computed(() => {
 <template>
   <div class="relative w-full overflow-auto">
     <table
-      :class="cn('w-full caption-bottom text-sm', props.class)"
+      :class="cn('w-full caption-bottom text-sm border-separate border-spacing-0', props.class)"
       v-bind="delegatedProps"
     >
       <slot />
