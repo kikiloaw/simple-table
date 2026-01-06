@@ -63,8 +63,8 @@ const props = withDefaults(defineProps<Props>(), {
   pageSizes: () => [10, 20, 30, 50, 100],
   rowHeight: 38,
   oddRowColor: 'bg-white',
-  evenRowColor: 'bg-stone-100',
-  hoverColor: 'hover:bg-stone-200'
+  evenRowColor: 'bg-gray-50',
+  hoverColor: 'hover:bg-gray-100'
 })
 
 
@@ -586,6 +586,13 @@ function handlePageSizeChange(size: any) {
     fetchData()
 }
 
+// Helper for header content alignment (justify for flex)
+function getHeaderJustifyClass(col: any) {
+    if (col.align === 'center') return 'justify-center'
+    if (col.align === 'right') return 'justify-end'
+    return 'justify-start'
+}
+
 // Get row class with simple alternating stripes (all rows)
 function getRowClass(row: any, idx: number) {
   // Alternate: index 0 = white, index 1 = gray, index 2 = white, etc.
@@ -643,73 +650,152 @@ onMounted(() => {
 
 defineExpose({
     refresh,
-    fetchData, // exposing fetchData too just in case
-    clearCache // expose cache clearing method
+    fetchData,
+    clearCache
 })
 
 
+// -- Helper Functions --
+
+function isColFixed(col: any) {
+  return !!col.fixed
+}
+
+// Calculate left offset dynamically
+function getStickyLeftOffset(index: number) {
+    let offset = 0
+    for (let i = 0; i < index; i++) {
+        const col = props.columns[i]
+        // Only consider left-fixed columns
+        const isRightFixed = (col.fixed && i === props.columns.length - 1)
+        
+        if (col.fixed && !isRightFixed) {
+            let w = 100 // Default width
+            if (col.width) {
+                 if (typeof col.width === 'string') {
+                    // Extract number from "80px", "100", etc.
+                    const match = col.width.match(/^(\d+(\.\d+)?)/)
+                    if (match) w = parseFloat(match[1])
+                 } else if (typeof col.width === 'number') {
+                    w = col.width
+                 }
+            }
+            offset += w
+        }
+    }
+    return offset
+}
 
 // -- Helper Styles --
 function getCellClass(col: any, index: number, totalCols: number, rowIndex: number = -1) {
-    let classes = col.class || ''
+    let classes = ''
     
     // Base classes
-    // Removed whitespace-nowrap to allow wrapping
+    
+    // Add text alignment (default: left)
+    const alignClass = col.align === 'center' ? ' text-center' : col.align === 'right' ? ' text-right' : ' text-left'
+    classes += alignClass
     
     if (col.fixed) {
         // Sticky logic
-        let stickyClass = ' whitespace-nowrap' // Prevent content wrapping in sticky columns
-        if (index === totalCols - 1) {
-             // Last Column -> Right Sticky
-             stickyClass = ' sticky right-0 z-10 shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.1)] border-l border-stone-300'
+        let stickyClass = ' whitespace-nowrap'
+        
+        // Check if this is the LAST left-fixed column
+        // It is the last left-fixed if:
+        // 1. It is NOT the last column (which is right-fixed)
+        // 2. The NEXT column is NOT fixed OR is the last column (right-fixed)
+        const isRightFixed = index === totalCols - 1
+        
+        if (isRightFixed) {
+             // Last Column -> Right Sticky (shadow on LEFT side)
+             stickyClass = ' sticky right-0 z-50 fixed-column-boundary-left'
         } else {
-            // All other fixed columns -> Left Sticky
-            stickyClass = ' sticky left-0 z-10 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.1)] border-r border-stone-300'
+            // Left Sticky - must have high z-index to stay on top of scrolling content
+            // Apply consistent shadow and border to all left-fixed columns (shadow on RIGHT side)
+            stickyClass = ' sticky z-50'
         }
 
         // Determine background
-        // Sticky cells need opaque bg. We rely on the props.
-        let bgClass = 'bg-background' // Fallback
+        // Sticky cells need opaque bg.
+        let bgClass = '' 
         
         if (rowIndex !== -1) {
             // Body Row
             const isOdd = rowIndex % 2 === 0
-            bgClass = isOdd ? props.oddRowColor : props.evenRowColor
+            // Use custom class if provided, otherwise use row colors
+            if (col.class) {
+                bgClass = col.class
+            } else {
+                bgClass = isOdd ? (props.oddRowColor || 'bg-white') : (props.evenRowColor || 'bg-gray-50')
+            }
             
             // Should also match hover
-            // If the row has a hover class (like hover:bg-muted), the sticky cell needs group-hover:bg-muted to match.
-            // We assume hoverColor is passed as 'hover:bg-...' 
-            // We try to convert 'hover:bg-...' to 'group-hover:bg-...'
             if (props.hoverColor) {
                const hoverParts = props.hoverColor.split(':')
                if (hoverParts.length > 1) {
-                   // e.g. ['hover', 'bg-blue-100'] -> 'group-hover:bg-blue-100'
                    bgClass += ` group-hover:${hoverParts[1]}`
-                   // Also handle things like 'hover:bg-muted/50'
                    if (hoverParts.length > 2) {
                        bgClass = bgClass + ':' + hoverParts.slice(2).join(':')
                    }
                }
             }
         } else {
-            // Header Row
-            bgClass = 'bg-background'
+            // Header Row - use custom class if provided, otherwise default to white
+            bgClass = col.class || 'bg-white' // Must be opaque
         }
         
-        classes += stickyClass + ' ' + bgClass
+        // Check if this is the last left-fixed column (boundary)
+        const nextCol = props.columns[index + 1]
+        const isLastLeftFixed = nextCol && !nextCol.fixed
+        
+        if (isLastLeftFixed) {
+            classes += ' fixed-column-boundary-right !pr-6'
+        }
+        
+        classes += stickyClass + ' ' + bgClass + ' !bg-opacity-100'
+    } else {
+        // Non-fixed column - just add custom class if provided
+        if (col.class) {
+            classes += ' ' + col.class
+        }
     }
     return classes
 }
 
-function getCellStyle(col: any) {
+function getCellStyle(col: any, index: number, totalCols: number) {
+    const style: any = {}
+    
     if (col.width) {
-        return { width: col.width, minWidth: col.width, maxWidth: col.width }
+        style.width = col.width
+        style.minWidth = col.width
+        style.maxWidth = col.width
+    } else if (col.fixed) {
+        style.width = '100px' // Default fixed width if not processing
+        style.minWidth = '100px'
     }
-    // Smart default: If fixed but no width, force a safe width (e.g. 100px) to ensure background covers content
+
     if (col.fixed) {
-        return { width: '100px', minWidth: '100px' }
+        // Handle Left vs Right
+        if (index !== totalCols - 1) {
+            // Left Sticky: Calculate directly
+            const left = getStickyLeftOffset(index)
+            style.left = `${left}px`
+            
+            // Only add separator to the LAST left-fixed column (the boundary)
+            const nextCol = props.columns[index + 1]
+            const isLastLeftFixed = nextCol && !nextCol.fixed
+            
+            if (isLastLeftFixed) {
+                // Add position relative so the ::after pseudo-element works
+                style.position = 'sticky' // Already sticky, but make it explicit
+            }
+        } else {
+            // Right sticky - will use CSS class for border
+        }
+        // Right sticky is handled by CSS class right-0
     }
-    return {}
+    
+    return style
 }
 
 </script>
@@ -758,33 +844,35 @@ function getCellStyle(col: any) {
     </div>
 
     <!-- Table -->
-    <div class="border bg-background overflow-x-auto relative">
-      <!-- We add min-w-full to Table to ensure it stretches -->
-      <Table class="min-w-full table-auto"> 
+    <div class="border bg-background relative">
+      <div class="overflow-x-auto">
+        <!-- We add min-w-full to Table to ensure it stretches -->
+        <Table class="min-w-full table-auto"> 
         <TableHeader>
           <TableRow :style="{ height: densityConfig.cellHeight }">
             <TableHead
               v-for="(col, idx) in columns"
               :key="col.key"
               :class="getCellClass(col, idx, columns.length)"
-              :style="getCellStyle(col)"
+              :style="getCellStyle(col, idx, columns.length)"
               :height="densityConfig.headerHeight"
               :padding="densityConfig.headerPadding"
             >
               <div
                 v-if="col.sortable"
-                class="flex items-center space-x-2 cursor-pointer select-none hover:text-foreground"
+                class="flex items-center space-x-2 cursor-pointer select-none hover:text-foreground w-full"
+                :class="getHeaderJustifyClass(col)"
                 @click="handleSort(col)"
               >
                 <div>{{ col.label }}</div>
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4 opacity-50 flex-shrink-0"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
               </div>
-              <div v-else>{{ col.label }}</div>
+              <div v-else class="w-full flex" :class="getHeaderJustifyClass(col)">{{ col.label }}</div>
             </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          <template v-if="isLoading">
+          <template v-if="isLoading && tableData.length === 0">
              <TableRow>
                 <TableCell :colspan="columns.length" class="h-24 text-center">
                     <div class="flex items-center justify-center">
@@ -821,7 +909,7 @@ function getCellStyle(col: any) {
                   v-for="(col, cIdx) in columns"
                   :key="col.key"
                   :class="getCellClass(col, cIdx, columns.length, idx)"
-                  :style="getCellStyle(col)"
+                  :style="getCellStyle(col, cIdx, columns.length)"
                   :padding="densityConfig.cellPadding"
                   :height="densityConfig.cellHeight"
                 >
@@ -847,6 +935,12 @@ function getCellStyle(col: any) {
           </TableRow>
         </TableBody>
       </Table>
+      </div>
+      
+      <!-- Loading Overlay -->
+      <div v-if="isLoading && tableData.length > 0" class="absolute inset-0 bg-background/50 flex items-center justify-center z-[60]">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-8 w-8 animate-spin text-primary"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+      </div>
     </div>
 
     <!-- Pagination -->
@@ -903,3 +997,28 @@ function getCellStyle(col: any) {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Fixed column boundary separator (DataTables approach) */
+.fixed-column-boundary-right::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 10px;
+  box-shadow: rgba(0, 0, 0, 0.2) 6px 0px 4px -4px inset;
+  pointer-events: none;
+}
+
+.fixed-column-boundary-left::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -10px;
+  bottom: 0;
+  width: 10px;
+  box-shadow: rgba(0, 0, 0, 0.2) -6px 0px 4px -4px inset;
+  pointer-events: none;
+}
+</style>

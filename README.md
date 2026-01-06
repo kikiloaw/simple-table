@@ -478,7 +478,8 @@ SimpleTable supports three data modes:
   sortable: true,        // Optional: Enable sorting
   width: '200px',        // Optional: Fixed column width
   fixed: true,           // Optional: Sticky column (left for first, right for last, others left). **Requires `width` to be set.**
-  class: 'text-center'   // Optional: Additional CSS classes
+  align: 'right',        // Optional: Text alignment ('left', 'center', 'right'). Default: 'left'
+  class: 'text-red-500'  // Optional: Additional CSS classes
 }
 ```
 
@@ -1402,6 +1403,28 @@ table.value?.refresh()
 | `@update:sort` | `{ column, direction }` | Emitted when sort changes |
 | `@page-change` | `number` | Emitted when page changes |
 | `@export` | `{ format, data }` | Emitted when export is triggered |
+| `@fetched` | `Object` (Response) | Emitted when data is successfully fetched from API. Contains raw response. |
+
+---
+
+## 🔧 Exposed Methods
+
+Access these methods via template ref:
+
+```vue
+<script setup>
+const tableRef = ref()
+
+// ...
+tableRef.value?.refresh()
+</script>
+```
+
+| Method | Parameters | Description |
+|--------|------------|-------------|
+| `refresh()` | None | Resets page to 1 and refetches data |
+| `fetchData(params)` | `params: Object` | Fetch data with specific custom parameters |
+| `clearCache()` | None | Clears the client-side response cache |
 
 ---
 
