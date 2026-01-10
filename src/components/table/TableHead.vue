@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { type HTMLAttributes, computed } from 'vue'
-import { cn } from '@/lib/utils'
+import { cn } from '../../lib/utils'
 
 const props = defineProps<{
   class?: HTMLAttributes['class']
@@ -21,7 +21,7 @@ const delegatedProps = computed(() => {
       cn(
         props.height || 'h-[38px]',
         props.padding || 'px-2.5',
-        'border-b border-stone-300 align-middle font-bold text-muted-foreground [&:has([role=checkbox])]:pr-0',
+        'border-b border-stone-300 align-middle font-bold text-gray-500 [&:has([role=checkbox])]:pr-0',
         props.class,
       )
     "

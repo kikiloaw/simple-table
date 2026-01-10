@@ -803,48 +803,52 @@ function getCellStyle(col: any, index: number, totalCols: number) {
 <template>
   <div class="space-y-4">
     <!-- Toolbar -->
-    <div v-if="searchable" class="flex flex-col sm:flex-row items-center justify-between gap-4">
-      <div v-if="searchable" class="relative w-full sm:max-w-sm flex items-center gap-2">
-        <!-- Page Size Select (Z-Index increased to sit above siblings) -->
-        <!-- Page Size Select (Native & Styled) -->
-        <div class="flex items-center gap-2 shrink-0 relative z-20">
-            <span class="text-sm text-muted-foreground whitespace-nowrap hidden sm:inline">Rows</span>
-            <div class="relative">
-                <select 
-                    :value="currentPerPage" 
-                    @change="(e: any) => handlePageSizeChange(e.target.value)"
-                    class="h-10 w-[80px] appearance-none border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
-                >
-                    <option 
-                        v-for="pageSize in normalizedPageSizes" 
-                        :key="pageSize.value" 
-                        :value="pageSize.value"
+    <div v-if="searchable" class="flex flex-wrap items-center justify-between gap-4 w-full">
+      
+        <!-- Left Group: Rows + Search -->
+        <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto flex-1">
+            
+            <!-- Rows per page -->
+            <div class="flex items-center gap-2 shrink-0">
+                <span class="text-sm text-gray-500 whitespace-nowrap">Rows</span>
+                <div class="relative h-10 w-[70px]">
+                    <select 
+                        :value="currentPerPage" 
+                        @change="(e: any) => handlePageSizeChange(e.target.value)"
+                        class="h-full w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
                     >
-                    {{ pageSize.label }}
-                    </option>
-                </select>
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute right-2 top-3 h-4 w-4 opacity-50 pointer-events-none"><path d="m6 9 6 6 6-6"/></svg>
-           </div>
-        </div>
+                        <option 
+                            v-for="pageSize in normalizedPageSizes" 
+                            :key="pageSize.value" 
+                            :value="pageSize.value"
+                        >
+                        {{ pageSize.label }}
+                        </option>
+                    </select>
+                </div>
+            </div>
 
-        <!-- Search Input -->
-        <div class="relative w-full z-10">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            <input
-                v-model="searchQuery"
-                type="text"
-                placeholder="Search..."
-                class="flex h-10 w-full border border-input bg-background px-3 py-2 pl-8 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            />
-        </div>
+            <!-- Search Input -->
+            <div class="relative flex-1 min-w-[200px]">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 pointer-events-none"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <input
+                    v-model="searchQuery"
+                    type="text"
+                    style="padding-left: 2.5rem !important"
+                    placeholder="Search..."
+                    class="flex h-10 w-full rounded-md border border-gray-300 bg-white !pr-3 !pl-10 py-2 text-sm ring-offset-white placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                />
+            </div>
       </div>
-      <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:ml-auto justify-start sm:justify-end">
+      
+      <!-- Actions Slot -->
+      <div class="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
          <slot name="actions" :rows="tableData" :columns="columns" />
       </div>
     </div>
 
     <!-- Table -->
-    <div class="border bg-background relative">
+    <div class="border bg-white relative">
       <div class="overflow-x-auto">
         <!-- We add min-w-full to Table to ensure it stretches -->
         <Table class="min-w-full table-auto"> 
@@ -860,7 +864,7 @@ function getCellStyle(col: any, index: number, totalCols: number) {
             >
               <div
                 v-if="col.sortable"
-                class="flex items-center space-x-2 cursor-pointer select-none hover:text-foreground w-full"
+                class="flex items-center space-x-2 cursor-pointer select-none hover:text-gray-900 w-full"
                 :class="getHeaderJustifyClass(col)"
                 @click="handleSort(col)"
               >
@@ -876,7 +880,7 @@ function getCellStyle(col: any, index: number, totalCols: number) {
              <TableRow>
                 <TableCell :colspan="columns.length" class="h-24 text-center">
                     <div class="flex items-center justify-center">
-                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6 animate-spin text-muted-foreground"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6 animate-spin text-gray-500"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
                     </div>
                 </TableCell>
              </TableRow>
@@ -938,20 +942,20 @@ function getCellStyle(col: any, index: number, totalCols: number) {
       </div>
       
       <!-- Loading Overlay -->
-      <div v-if="isLoading && tableData.length > 0" class="absolute inset-0 bg-background/50 flex items-center justify-center z-[60]">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-8 w-8 animate-spin text-primary"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+      <div v-if="isLoading && tableData.length > 0" class="absolute inset-0 bg-white/50 flex items-center justify-center z-[60]">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-8 w-8 animate-spin text-blue-600"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
       </div>
     </div>
 
     <!-- Pagination -->
     <div class="flex items-center justify-between px-2">
-        <div class="text-sm text-muted-foreground">
+        <div class="text-sm text-gray-500">
             Showing {{ paginationMeta.from }} to {{ paginationMeta.to }} of {{ paginationMeta.total }} results
         </div>
       <div class="flex items-center space-x-1">
         <!-- Previous Button -->
         <button
-          class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3"
+          class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-white hover:bg-gray-100 hover:text-gray-900 h-9 px-3"
           :disabled="(isServerSide ? serverMeta?.current_page === 1 : currentPage === 1)"
           @click="handlePageChange(isServerSide ? (serverMeta?.current_page || 1) - 1 : currentPage - 1)"
         >
@@ -964,7 +968,7 @@ function getCellStyle(col: any, index: number, totalCols: number) {
           <!-- Ellipsis -->
           <span 
             v-if="page === '...'" 
-            class="inline-flex items-center justify-center h-9 px-3 text-sm text-muted-foreground"
+            class="inline-flex items-center justify-center h-9 px-3 text-sm text-gray-500"
           >
             ...
           </span>
@@ -972,11 +976,11 @@ function getCellStyle(col: any, index: number, totalCols: number) {
           <!-- Page Number Button -->
           <button
             v-else
-            class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border h-9 min-w-[36px] px-3"
+            class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border h-9 min-w-[36px] px-3"
             :class="[
               (isServerSide ? serverMeta?.current_page === page : currentPage === page)
-                ? 'bg-primary text-primary-foreground border-primary hover:bg-primary/90'
-                : 'border-input bg-background hover:bg-accent hover:text-accent-foreground'
+                ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
+                : 'border-gray-300 bg-white hover:bg-gray-100 hover:text-gray-900'
             ]"
             @click="handlePageChange(page as number)"
           >
@@ -986,7 +990,7 @@ function getCellStyle(col: any, index: number, totalCols: number) {
         
         <!-- Next Button -->
         <button
-          class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3"
+          class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-white hover:bg-gray-100 hover:text-gray-900 h-9 px-3"
           :disabled="(isServerSide ? serverMeta?.current_page === serverMeta?.last_page : currentPage === totalPages)"
           @click="handlePageChange(isServerSide ? (serverMeta?.current_page || 1) + 1 : currentPage + 1)"
         >

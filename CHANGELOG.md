@@ -5,6 +5,30 @@ All notable changes to SimpleTable will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.4] - 2026-01-11
+
+### Fixed
+- **Flowbite & Tailwind Integration**:
+    - **Toolbar**: Switched to a robust `flex-wrap` layout to handle all screen sizes and global CSS conflicts (like Flowbite).
+    - **Search Input**: Implemented inline styles (`padding-left: 2.5rem !important`) to guaranteed search icon spacing.
+    - **Rows Dropdown**: Reverted to native browser controls to eliminate "double arrow" glitches.
+- **Visual Consistency**: Replaced all Shadcn-specific classes (`muted`, `accent`) with standard Tailwind gray scales for better standalone support.
+- **Dependencies**: Added `clsx` and `tailwind-merge` as direct dependencies.
+- **Alignment**: Fixed vertical centering of icons and inputs.
+
+
+## [1.1.3] - 2026-01-11
+
+### Fixed
+- **Toolbar Alignment**: Fixed issue where search and page size controls were centered on mobile or some CSS frameworks. Now forced to left-align on mobile (`items-start`) and center-align vertically on desktop (`sm:items-center`).
+
+## [1.1.2] - 2026-01-11
+
+### Fixed
+- **Dependency Resolution**: Fixed `Failed to resolve import "@/lib/utils"` error by replacing alias imports with relative paths in internal components.
+- **Dependencies**: Added `clsx` and `tailwind-merge` as direct dependencies to ensure the `cn` utility works out of the box without requiring the consumer to alias paths.
+- **Internal Structure**: Included `src/lib/utils.js` within the package to avoid external dependency on the consuming project's file structure.
+
 ## [1.1.1] - 2026-01-07
  
  ### Fixed

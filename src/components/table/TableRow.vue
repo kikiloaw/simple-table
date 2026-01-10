@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { type HTMLAttributes, computed } from 'vue'
-import { cn } from '@/lib/utils'
+import { cn } from '../../lib/utils'
 
 const props = defineProps<{
   class?: HTMLAttributes['class']
@@ -17,7 +17,7 @@ const delegatedProps = computed(() => {
   <tr
     :class="
       cn(
-        'transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted',
+        'transition-colors hover:bg-gray-100 data-[state=selected]:bg-gray-100',
         props.class,
       )
     "
