@@ -5,6 +5,51 @@ All notable changes to SimpleTable will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.10] - 2026-01-11
+
+### Added
+- **Granular Cache Clearing**: Updated `clearCache()` to accept a scope argument:
+  - `clearCache('all')` (default): Clears the entire cache.
+  - `clearCache('current')`: Clears only the cache for the **current active page/state**. Use this when editing a row to refresh the current view while keeping other pages cached.
+
+## [1.1.9] - 2026-01-11
+
+### Documentation
+- **Method Clarity**: Updated the "Exposed Methods" section in README to explicitly state that:
+  - `clearCache()` clears the **entire** cache and does **not** auto-refetch.
+  - `refresh()` resets to Page 1.
+  - `fetchData()` allows refreshing the current page.
+
+## [1.1.8] - 2026-01-11
+
+### Documentation
+- **Updated Styling Guide**: Added `paginationColor` to the Props Reference in README, explaining how to set a custom active page color via hex code.
+
+## [1.1.7] - 2026-01-11
+
+### Added
+- **Custom Pagination Color**: New `paginationColor` prop (hex string) allows users to customize the background and border color of the active page button.
+  - Example: `:pagination-color="'#ec4899'"` for pink pagination buttons.
+  - Defaults to `#2563eb` (Tailwind Blue 600) if not provided.
+
+## [1.1.6] - 2026-01-11
+
+### Fixed
+- **Responsive Pagination**: 
+    - **Smart Mobile Logic**: Implemented `useWindowSize` to detect mobile (<640px) and extra-small (<550px) screens. Automatically reduces pagination range (`delta`) to prevents buttons from overflowing off-screen.
+    - **Compact Padding**: Reduced horizontal padding on pagination buttons (`px-2`) for mobile devices to save maximize available space.
+- **Protocol Compatibility**: Enhanced documentation to clarify that `SimpleTable` automatically adapts to most backend JSON formats (including DataTables-style) without needing explicit `protocol="datatables"` configuration, thanks to the robust meta polyfill.
+
+## [1.1.5] - 2026-01-11
+
+### Fixed
+- **Pagination Logic & Meta**:
+    - **String Concatenation Fix**: Fixed a critical bug where string-based page numbers were causing infinite ranges and arithmetic errors (e.g., "1" + 1 = "11"). Now strictly casting all page calculations to integers.
+    - **Meta Polyfill**: Added client-side calculation for `from` and `to` values. This ensures "Showing X to Y" displays correctly even if the backend (e.g., DataTables) doesn't return these specific fields.
+- **Visual Styling**:
+    - **Active Page Color**: Implemented inline styles (`style="background-color: ... !important"`) for the active page button. This guarantees the selected page is blue and visible, overriding any global framework conflicts (Flowbite, etc.).
+    - **Responsive Layout**: Added `flex-wrap` to the pagination container to effectively handle overflow on smaller screens.
+
 ## [1.1.4] - 2026-01-11
 
 ### Fixed

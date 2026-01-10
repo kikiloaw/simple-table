@@ -30,14 +30,8 @@
 npm install @kikiloaw/simple-table
 ```
 
-### Option 2: Local Copy
-
-```bash
-cp -r path/to/SimpleTable /your-project/src/components/
-```
 
 ---
-
 ## 🚀 Quick Start
 
 ### 1. Import the Component
@@ -422,10 +416,10 @@ SimpleTable supports three data modes:
 
 ### Protocol Formats
 
-| Protocol | When to Use | Backend Library |
-|----------|-------------|-----------------|
-| **`laravel`** (default) | New projects, standard Laravel apps | Native Laravel pagination |
-| **`datatables`** | Legacy projects, existing DataTables | Yajra DataTables |
+| Protocol | When to Use | Backend Compatibility |
+|----------|-------------|-----------------------|
+| **`laravel`** (default) | **Recommended for 99% of cases.** | Standard Laravel pagination, Resource Collections, and custom JSON responses (including simple DataTables-like backends). |
+| **`datatables`** | Rare. | Only use if your backend **strictly requires** `draw`, `start`, and `length` request parameters and fails with standard `page`/`per_page` params. |
 
 ---
 
@@ -464,6 +458,7 @@ SimpleTable supports three data modes:
 | `oddRowColor` | String | `'bg-white'` | Tailwind class for odd rows |
 | `evenRowColor` | String | `'bg-stone-100'` | Tailwind class for even rows |
 | `hoverColor` | String | `'hover:bg-stone-200'` | Tailwind class for row hover |
+| `paginationColor` | String | `'#2563eb'` | Hex color for active pagination button |
 
 ---
 
@@ -1422,9 +1417,9 @@ tableRef.value?.refresh()
 
 | Method | Parameters | Description |
 |--------|------------|-------------|
-| `refresh()` | None | Resets page to 1 and refetches data |
-| `fetchData(params)` | `params: Object` | Fetch data with specific custom parameters |
-| `clearCache()` | None | Clears the client-side response cache |
+| `refresh()` | None | **Resets to Page 1** and refetches data. Use for "Reset" actions. |
+| `fetchData(params)` | `params?: Object` | Refetches **current page** (if no params). Pass params to override (e.g. `{ page: 1 }`). |
+| `clearCache(scope)` | `scope?: 'all' \| 'current'` | Clears cache. Default `'all'` clears everything. Pass `'current'` to clear only active page state. |
 
 ---
 

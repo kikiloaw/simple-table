@@ -12,7 +12,7 @@ import {
 
 
 
-import { useDebounceFn } from '@vueuse/core'
+import { useDebounceFn, useWindowSize } from '@vueuse/core'
 
 /**
  * Props definition
@@ -49,6 +49,7 @@ interface Props {
   oddRowColor?: string  // Tailwind color class, e.g. 'bg-white'
   evenRowColor?: string // Tailwind color class, e.g. 'bg-gray-50'
   hoverColor?: string   // Tailwind color class for hover, e.g. 'hover:bg-gray-100'. If passed, we'll try to apply group-hover for fixed cols.
+  paginationColor?: string // Hex color for active pagination button (default: #2563eb)
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -193,8 +194,13 @@ function getCacheKey(): string {
     })
 }
 
-function clearCache() {
-    responseCache.value.clear()
+function clearCache(scope: 'all' | 'current' = 'all') {
+    if (scope === 'current') {
+        const key = getCacheKey()
+        responseCache.value.delete(key)
+    } else {
+        responseCache.value.clear()
+    }
 }
 
 // Internal data state to handle both props updates and ajax updates
@@ -225,13 +231,24 @@ const serverMeta = computed(() => {
     const d = internalData.value as any
     // Handle standard Laravel Paginator or Resource Collection
     const meta = d.meta || d
+    
+    // Polyfill missing 'from' and 'to' if server response (like DataTables custom backend) omits them
+    const page = meta.current_page ?? 1
+    const pPage = meta.per_page ?? currentPerPage.value
+    const total = meta.total ?? 0
+    const dataCount = Array.isArray(d.data) ? d.data.length : 0
+    
+    // Calculate fallback values
+    const calculatedFrom = total === 0 ? 0 : ((page - 1) * pPage) + 1
+    const calculatedTo = total === 0 ? 0 : Math.min(calculatedFrom + dataCount - 1, total)
+
     return {
-        current_page: meta.current_page ?? 1,
+        current_page: page,
         last_page: meta.last_page ?? 1,
-        per_page: meta.per_page ?? currentPerPage.value,
-        from: meta.from ?? 0,
-        to: meta.to ?? 0,
-        total: meta.total ?? 0,
+        per_page: pPage,
+        from: meta.from ?? calculatedFrom,
+        to: meta.to ?? calculatedTo,
+        total: total,
         links: meta.links ?? []
     }
 })
@@ -325,9 +342,16 @@ const paginationMeta = computed(() => {
 
 // -- Computed: Page Numbers for Pagination --
 const pageNumbers = computed(() => {
-    const current = isServerSide.value ? (serverMeta.value?.current_page || 1) : currentPage.value
-    const total = totalPages.value
-    const delta = 2 // Number of pages to show on each side of current page
+    const { width } = useWindowSize()
+    const isMobile = width.value < 640
+    const isExtraSmall = width.value < 550
+    
+    const current = Number(isServerSide.value ? (serverMeta.value?.current_page || 1) : currentPage.value)
+    const total = Number(totalPages.value)
+    // Show fewer surrounding pages on mobile to prevent overflow
+    // delta = 0 means only current page (plus first/last)
+    const delta = isExtraSmall ? 0 : (isMobile ? 1 : 2)
+    
     const pages: (number | string)[] = []
     
     // Always show first page
@@ -948,16 +972,16 @@ function getCellStyle(col: any, index: number, totalCols: number) {
     </div>
 
     <!-- Pagination -->
-    <div class="flex items-center justify-between px-2">
+    <div class="flex items-center justify-between flex-wrap gap-4 px-2 py-2">
         <div class="text-sm text-gray-500">
             Showing {{ paginationMeta.from }} to {{ paginationMeta.to }} of {{ paginationMeta.total }} results
         </div>
       <div class="flex items-center space-x-1">
         <!-- Previous Button -->
         <button
-          class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-white hover:bg-gray-100 hover:text-gray-900 h-9 px-3"
-          :disabled="(isServerSide ? serverMeta?.current_page === 1 : currentPage === 1)"
-          @click="handlePageChange(isServerSide ? (serverMeta?.current_page || 1) - 1 : currentPage - 1)"
+          class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-white hover:bg-gray-100 hover:text-gray-900 h-9 px-2 sm:px-3"
+          :disabled="(isServerSide ? Number(serverMeta?.current_page) === 1 : currentPage === 1)"
+          @click="handlePageChange(isServerSide ? (Number(serverMeta?.current_page || 1)) - 1 : currentPage - 1)"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="m15 18-6-6 6-6"/></svg>
           <span class="ml-1 hidden sm:inline">Previous</span>
@@ -968,7 +992,7 @@ function getCellStyle(col: any, index: number, totalCols: number) {
           <!-- Ellipsis -->
           <span 
             v-if="page === '...'" 
-            class="inline-flex items-center justify-center h-9 px-3 text-sm text-gray-500"
+            class="inline-flex items-center justify-center h-9 px-2 sm:px-3 text-sm text-gray-500"
           >
             ...
           </span>
@@ -976,12 +1000,13 @@ function getCellStyle(col: any, index: number, totalCols: number) {
           <!-- Page Number Button -->
           <button
             v-else
-            class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border h-9 min-w-[36px] px-3"
+            class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border h-9 min-w-[36px] px-2 sm:px-3"
             :class="[
-              (isServerSide ? serverMeta?.current_page === page : currentPage === page)
-                ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
+              (isServerSide ? Number(serverMeta?.current_page) === page : currentPage === page)
+                ? 'hover:bg-blue-700'
                 : 'border-gray-300 bg-white hover:bg-gray-100 hover:text-gray-900'
             ]"
+            :style="(isServerSide ? Number(serverMeta?.current_page) === page : currentPage === page) ? `background-color: ${props.paginationColor || '#2563eb'} !important; color: white !important; border-color: ${props.paginationColor || '#2563eb'} !important;` : ''"
             @click="handlePageChange(page as number)"
           >
             {{ page }}
@@ -990,9 +1015,9 @@ function getCellStyle(col: any, index: number, totalCols: number) {
         
         <!-- Next Button -->
         <button
-          class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-white hover:bg-gray-100 hover:text-gray-900 h-9 px-3"
-          :disabled="(isServerSide ? serverMeta?.current_page === serverMeta?.last_page : currentPage === totalPages)"
-          @click="handlePageChange(isServerSide ? (serverMeta?.current_page || 1) + 1 : currentPage + 1)"
+          class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-white hover:bg-gray-100 hover:text-gray-900 h-9 px-2 sm:px-3"
+          :disabled="(isServerSide ? Number(serverMeta?.current_page) === Number(serverMeta?.last_page) : currentPage === totalPages)"
+          @click="handlePageChange(isServerSide ? (Number(serverMeta?.current_page || 1)) + 1 : currentPage + 1)"
         >
           <span class="mr-1 hidden sm:inline">Next</span>
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="m9 18 6-6-6-6"/></svg>
