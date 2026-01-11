@@ -5,6 +5,14 @@ All notable changes to SimpleTable will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.20] - 2026-01-11
+
+### Changed
+- **Reverted Naming**: Renamed `reload()` back to `refresh()` to maintain backward compatibility.
+    - `refresh()`: **Hard Reset** (Page 1 + Clear Cache + Refetch). Use this for resetting the table (e.g. filter changes).
+    - `clearCache()`: **Refresh Current Page**. Use this for reloading the current page without jumping to page 1.
+    - `reload()`: Removed (use `refresh()` instead).
+
 ## [1.1.19] - 2026-01-11
 
 ### Changed

@@ -732,8 +732,8 @@ function handlePageChange(page: number) {
 }
 
 
-// Reload (Reset): Go to page 1, clear cache, and refetch
-async function reload() {
+// Refresh (Reset): Go to page 1, clear cache, and refetch
+async function refresh() {
     currentPage.value = 1
     await nextTick()
     
@@ -755,7 +755,7 @@ onMounted(() => {
 })
 
 defineExpose({
-    reload, // The new "Reset" function
+    refresh, // The "Reset" function (backward compatible name)
     fetchData,
     clearCache // The "Reload current page" function (effectively)
 })
