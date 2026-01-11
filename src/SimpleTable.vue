@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="T">
-import { computed, ref, watch, onMounted } from 'vue'
+import { computed, ref, watch, onMounted, nextTick } from 'vue'
 import { router } from '@inertiajs/vue3'
 import {
   Table,
@@ -341,8 +341,10 @@ const paginationMeta = computed(() => {
 })
 
 // -- Computed: Page Numbers for Pagination --
+const { width } = useWindowSize()
+
 const pageNumbers = computed(() => {
-    const { width } = useWindowSize()
+    // const { width } = useWindowSize() // MOVED OUTSIDE
     const isMobile = width.value < 640
     const isExtraSmall = width.value < 550
     
@@ -397,6 +399,7 @@ async function fetchData(params: any = {}) {
         }
         
         isLoading.value = true
+
         try {
             // Construct Query Parameters
             const url = new URL(props.fetchUrl, window.location.origin)
@@ -408,10 +411,29 @@ async function fetchData(params: any = {}) {
                 url.searchParams.append('length', String(currentPerPage.value))
                 url.searchParams.append('draw', String(drawCounter.value))
                 
-                if (searchQuery.value) {
-                    url.searchParams.append('search[value]', searchQuery.value)
-                }
+                // Defensive: Remove standard pagination params if they exist in the base URL
+                url.searchParams.delete('page')
+                url.searchParams.delete('per_page')
                 
+                // Add Columns Configuration (Required for strict DataTables backends like Yajra)
+                props.columns.forEach((col, index) => {
+                    const colName = typeof col.sortable === 'string' ? col.sortable : col.key
+                    const isSortable = !!col.sortable
+                    const isSearchable = true // Default to true as SimpleTable global search applies to all usually
+                    
+                    url.searchParams.append(`columns[${index}][data]`, col.key)
+                    url.searchParams.append(`columns[${index}][name]`, colName)
+                    url.searchParams.append(`columns[${index}][searchable]`, String(isSearchable))
+                    url.searchParams.append(`columns[${index}][orderable]`, String(isSortable))
+                    url.searchParams.append(`columns[${index}][search][value]`, '') 
+                    url.searchParams.append(`columns[${index}][search][regex]`, 'false')
+                })
+
+                // Global Search (Always send, even if empty)
+                url.searchParams.append('search[value]', searchQuery.value || '')
+                url.searchParams.append('search[regex]', 'false')
+                
+
                 if (sortColumn.value) {
                     // Find column index
                     const columnIndex = props.columns.findIndex(col => {
@@ -468,7 +490,10 @@ async function fetchData(params: any = {}) {
 
             let data = await response.json()
             
-            // Transform DataTables response to internal format
+            // Emit raw response immediately
+            emit('fetched', data)
+            
+            // Transform DataTables response to internal format for internal use
             if (props.protocol === 'datatables') {
                 // DataTables response: { draw, recordsTotal, recordsFiltered, data }
                 // Transform to Laravel format internally
@@ -490,7 +515,7 @@ async function fetchData(params: any = {}) {
             }
             
             internalData.value = data
-            emit('fetched', data)
+            // emit('fetched', data) // <-- Removed this, we emit raw data above
             
             // Store in cache if enabled
             if (props.enableCache) {
@@ -502,15 +527,55 @@ async function fetchData(params: any = {}) {
             isLoading.value = false
         }
     } else if (isServerSide.value) {
-         router.visit(window.location.pathname, {
-            data: { 
+        
+        let data: any = {}
+
+        if (props.protocol === 'datatables') {
+            const start = params.page 
+                ? (params.page - 1) * currentPerPage.value 
+                : (currentPage.value - 1) * currentPerPage.value
+                
+            data = {
+                draw: drawCounter.value,
+                start: start,
+                length: currentPerPage.value,
+                'search[value]': params.search ?? searchQuery.value ?? '',
+                ...props.queryParams
+            }
+
+            // Add Sort
+            if (params.sort || sortColumn.value) {
+                const colKey = params.sort ?? sortColumn.value
+                const colDir = params.order ?? sortDirection.value
+                
+                // Find column index
+                const columnIndex = props.columns.findIndex(col => {
+                    const sortKey = typeof col.sortable === 'string' ? col.sortable : col.key
+                    return sortKey === colKey
+                })
+                
+                if (columnIndex !== -1) {
+                    data['order[0][column]'] = columnIndex
+                    data['order[0][dir]'] = colDir
+                }
+            }
+            
+            drawCounter.value++
+
+        } else {
+            // Laravel format (default)
+            data = { 
                 page: params.page ?? currentPage.value,
                 per_page: currentPerPage.value,
                 search: params.search ?? searchQuery.value,
                 sort: params.sort ?? sortColumn.value,
                 order: params.order ?? sortDirection.value,
                 ...(props.queryParams || {})
-            },
+            }
+        }
+
+         router.visit(window.location.pathname, {
+            data,
             preserveState: true,
             preserveScroll: true,
             replace: true,
@@ -661,8 +726,9 @@ function handlePageChange(page: number) {
   emit('page-change', page)
 }
 
-function refresh() {
+async function refresh() {
     currentPage.value = 1
+    await nextTick()
     fetchData()
 }
 

@@ -5,6 +5,50 @@ All notable changes to SimpleTable will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.17] - 2026-01-11
+
+### Fixed
+- **Refresh Reactivity**: Updated `refresh()` to use `await nextTick()` before fetching data.
+  - This guarantees that any changes to `query-params` or other props triggered immediately before calling `refresh()` (like in parent component events) are fully propagated and available during the fetch call.
+  - Fixes issues where the table would reload with old parameters when a filter change and refresh were triggered simultaneously.
+
+## [1.1.16] - 2026-01-11
+
+### Changed
+- **`@fetched` Payload**: The `@fetched` event now emits the **raw** response from the server before any internal transformation.
+  - Previously, `protocol="datatables"` would emit the transformed Laravel-style object, causing data loss for custom backend fields.
+  - Now, you receive exactly what your backend sent (e.g., `{ draw, recordsTotal, data, myCustomField }`).
+
+## [1.1.15] - 2026-01-11
+
+### Changed
+- **Production Ready**: Removed all temporary console debug logs (`[SimpleTable] Fetching Data`, `DataTables Protocol - Columns`, etc.) added in previous versions for debugging protocol issues. Package is now clean for production use.
+- **Protocol Stability**: Confirmed full stability of the `protocol="datatables"` implementation with strict DataTables backends (Yajra).
+
+## [1.1.14] - 2026-01-11
+
+### Fixed
+- **Strict DataTables Protocol Support**: Updated `protocol="datatables"` to include the full `columns[...]` definition loop in the request payload.
+  - This is required for backend libraries (like `yajra/laravel-datatables`) that rely on `columns[i][name]` to map the `order[0][column]` index to a database column.
+  - Fixes "500 Internal Server Error" when using DataTables backends that expect strict column definitions.
+
+## [1.1.13] - 2026-01-11
+
+### Fixed
+- **Query Parameter Cleanup**: Added defensive coding to `fetchData` to explicitly remove `page` and `per_page` query parameters when using `protocol="datatables"`. This prevents legacy/default pagination parameters from leaking into the request if they are present in the base `fetchUrl` or query params.
+- **Debug Logging**: Added initialization logging (`SimpleTable 1.1.13 Initialized`) to help developers verify they are running the correct version of the package.
+
+## [1.1.12] - 2026-01-11
+
+### Fixed
+- **Inertia Protocol Support**: Added full support for `protocol="datatables"` when using Inertia-based server-side pagination (without `fetch-url`). Now correctly sends `draw`, `start`, `length`, `search[value]` and `order` params via `router.visit` when enabled.
+- **Debug Logging**: Added console logging to `fetchData` to assist in debugging protocol and payload issues.
+
+## [1.1.11] - 2026-01-11
+
+### Fixed
+- **Lifecycle Error**: Fixed `onMounted` warning ("called when there is no active component instance") by moving `useWindowSize()` call from `computed` property to top-level `setup`. This ensures the composable's lifecycle hooks are registered correctly during the synchronous setup phase.
+
 ## [1.1.10] - 2026-01-11
 
 ### Added

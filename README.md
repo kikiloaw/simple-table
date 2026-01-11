@@ -419,7 +419,7 @@ SimpleTable supports three data modes:
 | Protocol | When to Use | Backend Compatibility |
 |----------|-------------|-----------------------|
 | **`laravel`** (default) | **Recommended for 99% of cases.** | Standard Laravel pagination, Resource Collections, and custom JSON responses (including simple DataTables-like backends). |
-| **`datatables`** | Rare. | Only use if your backend **strictly requires** `draw`, `start`, and `length` request parameters and fails with standard `page`/`per_page` params. |
+| **`datatables`** | Legacy integrations. | Sends full DataTables payload (`draw`, `columns[...]`, `order[...]`, `search[...]`). Use this if you are using `yajra/laravel-datatables` or a strict DataTables backend. |
 
 ---
 
@@ -1153,17 +1153,22 @@ $('#myTable').DataTable({
 
 **SimpleTable sends:**
 ```
-GET /api/users?start=0&length=10&draw=1&search[value]=john&order[0][column]=1&order[0][dir]=asc
+GET /api/users?draw=1&start=0&length=10&search[value]=john&search[regex]=false&order[0][column]=1&order[0][dir]=asc&columns[0][data]=id&columns[0][name]=id&columns[0][searchable]=true...
 ```
 
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| `start` | Record offset | `0`, `10`, `20` |
-| `length` | Records per page | `10`, `25`, `50` |
-| `draw` | Request counter | `1`, `2`, `3` |
-| `search[value]` | Search query | `john`, `admin` |
-| `order[0][column]` | Column index to sort | `0`, `1`, `2` |
-| `order[0][dir]` | Sort direction | `asc`, `desc` |
+| Parameter | Description |
+|-----------|-------------|
+| `draw` | Request counter |
+| `start` | Record offset (0, 10, 20...) |
+| `length` | Records per page (10, 25, 50...) |
+| `search[value]` | Global search term |
+| `search[regex]` | Regex flag (always false) |
+| `order[0][column]` | Index of column being sorted |
+| `order[0][dir]` | Sort direction (`asc`, `desc`) |
+| `columns[i][data]` | Column key |
+| `columns[i][name]` | Column name (or custom sort key) |
+| `columns[i][searchable]` | Searchable flag |
+| `columns[i][orderable]` | Sortable flag |
 
 ### Response Format
 
