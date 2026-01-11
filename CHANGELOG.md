@@ -5,6 +5,24 @@ All notable changes to SimpleTable will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.19] - 2026-01-11
+
+### Changed
+- **API Redesign**:
+    - `reload()`: Now behaves as a **Hard Reset**. It resets to **Page 1**, clears the cache (if enabled), and fetches fresh data.
+    - `clearCache()`: Now behaves as **Refresh Current Page**. Calling `clearCache('current')` or `clearCache('all')` will clear the respective cache AND automatically trigger a re-fetch of the current page.
+
+### Removed
+- Removed `refresh()` method (replaced by `reload()`).
+
+## [1.1.18] - 2026-01-11
+
+### Added
+- **`reload()` Method**: Added a new exposed method to reload the **current page** while forcing a cache clear. Use this after deleting or updating rows to refresh data without jumping back to page 1.
+
+### Fixed
+- **Refresh Cache Clearing**: The `refresh()` method now automatically clears the cache for Page 1 before fetching, ensuring you always get fresh data when resetting the table.
+
 ## [1.1.17] - 2026-01-11
 
 ### Fixed

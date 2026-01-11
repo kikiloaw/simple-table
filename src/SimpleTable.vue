@@ -194,12 +194,17 @@ function getCacheKey(): string {
     })
 }
 
-function clearCache(scope: 'all' | 'current' = 'all') {
+async function clearCache(scope: 'all' | 'current' = 'all') {
     if (scope === 'current') {
         const key = getCacheKey()
         responseCache.value.delete(key)
     } else {
         responseCache.value.clear()
+    }
+    
+    // User requested behavior: clearCache triggers fresh fetch
+    if (props.fetchUrl) {
+        await fetchData()
     }
 }
 
@@ -726,9 +731,20 @@ function handlePageChange(page: number) {
   emit('page-change', page)
 }
 
-async function refresh() {
+
+// Reload (Reset): Go to page 1, clear cache, and refetch
+async function reload() {
     currentPage.value = 1
     await nextTick()
+    
+    // Clear cache for fresh start
+    if (props.enableCache) {
+        clearCache('current')
+        // Note: clearCache calls fetchData(), so we don't need to call it again explicitly here
+        // However, clearCache is async now.
+        return // clearCache already fetched
+    }
+    
     fetchData()
 }
 
@@ -739,9 +755,9 @@ onMounted(() => {
 })
 
 defineExpose({
-    refresh,
+    reload, // The new "Reset" function
     fetchData,
-    clearCache
+    clearCache // The "Reload current page" function (effectively)
 })
 
 
