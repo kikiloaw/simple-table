@@ -5,6 +5,14 @@ All notable changes to SimpleTable will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.21] - 2026-02-05
+
+### Fixed
+- **Row State Persistence**: Fixed a bug where toggle states (and other component states) would persist incorrectly on specific rows after data updates.
+  - Added new `rowKey` prop (default: `'id'`) to uniquely identify rows.
+  - Supports dot notation for nested keys (e.g., `'user.id'` or `'3.id'`).
+  - Updated `v-for` loop to use `rowKey` for the `:key` binding, ensuring Vue re-renders rows correctly when data changes.
+
 ## [1.1.20] - 2026-01-11
 
 ### Changed
@@ -130,7 +138,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Visual Consistency**: Replaced all Shadcn-specific classes (`muted`, `accent`) with standard Tailwind gray scales for better standalone support.
 - **Dependencies**: Added `clsx` and `tailwind-merge` as direct dependencies.
 - **Alignment**: Fixed vertical centering of icons and inputs.
-
 
 ## [1.1.3] - 2026-01-11
 
@@ -295,6 +302,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Inertia Integration**: Built-in router support for Laravel + Inertia apps
 - **Flexible Data Modes**: Auto, server-side, or client-side pagination
 - **Custom Sort Keys**: Map display keys to different backend columns
+- **Inertia Integration**: Built-in router support for Laravel + Inertia apps
 
 ### Dependencies
 - Vue 3 (peer dependency)

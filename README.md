@@ -441,6 +441,7 @@ SimpleTable supports three data modes:
 | `protocol` | String | `'laravel'` | API format: `'laravel'` or `'datatables'` |
 | `searchable` | Boolean | `true` | Enable search input |
 | `enableCache` | Boolean | `false` | Cache API responses |
+| `rowKey` | String | `'id'` | Unique key for row identity (fixes toggle state issues) |
 
 ### Pagination Props
 

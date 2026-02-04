@@ -50,6 +50,7 @@ interface Props {
   evenRowColor?: string // Tailwind color class, e.g. 'bg-gray-50'
   hoverColor?: string   // Tailwind color class for hover, e.g. 'hover:bg-gray-100'. If passed, we'll try to apply group-hover for fixed cols.
   paginationColor?: string // Hex color for active pagination button (default: #2563eb)
+  rowKey?: string // Unique key for row identification (default: 'id')
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -65,7 +66,8 @@ const props = withDefaults(defineProps<Props>(), {
   rowHeight: 38,
   oddRowColor: 'bg-white',
   evenRowColor: 'bg-gray-50',
-  hoverColor: 'hover:bg-gray-100'
+  hoverColor: 'hover:bg-gray-100',
+  rowKey: 'id'
 })
 
 
@@ -792,6 +794,12 @@ function getStickyLeftOffset(index: number) {
     return offset
 }
 
+// Helper to get nested value (e.g. "3.id" or "user.name")
+function getDeepValue(obj: any, path: string) {
+    if (!path) return undefined
+    return path.split('.').reduce((o, p) => (o ? o[p] : undefined), obj)
+}
+
 // -- Helper Styles --
 function getCellClass(col: any, index: number, totalCols: number, rowIndex: number = -1) {
     let classes = ''
@@ -994,7 +1002,7 @@ function getCellStyle(col: any, index: number, totalCols: number) {
           <template v-else-if="tableData.length">
             <TableRow 
                 v-for="(row, idx) in tableData" 
-                :key="idx"
+                :key="getDeepValue(row, props.rowKey) ?? idx"
                 class="group"
                 :class="getRowClass(row, idx)"
                 :style="{ height: densityConfig.cellHeight }"
