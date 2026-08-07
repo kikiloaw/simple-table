@@ -5,6 +5,12 @@ All notable changes to SimpleTable will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.22] - 2026-08-07
+
+### Changed
+- **Peer Dependencies**: Expanded `@inertiajs/vue3` peer dependency range to `^1.0.0 || ^2.0.0 || ^3.0.0` to support higher versions (including Inertia v3 / `@inertiajs/vue3@^3.0.0`) in newer Laravel projects.
+- **Peer Dependencies**: Expanded `@vueuse/core` peer dependency range to `^10.0.0 || ^11.0.0 || ^12.0.0 || ^13.0.0`.
+
 ## [1.1.21] - 2026-02-05
 
 ### Fixed
