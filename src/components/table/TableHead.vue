@@ -21,7 +21,7 @@ const delegatedProps = computed(() => {
       cn(
         props.height || 'h-[38px]',
         props.padding || 'px-2.5',
-        'border-b border-stone-300 align-middle font-bold text-gray-500 [&:has([role=checkbox])]:pr-0',
+        'border-b align-middle font-bold [&:has([role=checkbox])]:pr-0 st-head',
         props.class,
       )
     "

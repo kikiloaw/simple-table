@@ -17,7 +17,7 @@ const delegatedProps = computed(() => {
   <tr
     :class="
       cn(
-        'transition-colors hover:bg-gray-100 data-[state=selected]:bg-gray-100',
+        'transition-colors st-row',
         props.class,
       )
     "

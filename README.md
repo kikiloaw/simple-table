@@ -1292,11 +1292,46 @@ public function getData(Request $request)
 
 ```vue
 <SimpleTable 
-  odd-row-color="bg-white"
-  even-row-color="bg-gray-50"
-  hover-color="hover:bg-blue-50"
+  odd-row-color="bg-white dark:bg-stone-900"
+  even-row-color="bg-gray-50 dark:bg-stone-800/40"
+  hover-color="hover:bg-blue-50 dark:hover:bg-stone-800"
 />
 ```
+
+### Dark Mode & Dark Mode Bypass
+
+SimpleTable includes full, zero-config Tailwind dark mode support out of the box.
+
+#### 1. Automatic Dark Mode
+SimpleTable automatically responds to Tailwind dark mode classes (e.g., `<html class="dark">`) or system dark mode preferences.
+
+#### 2. Dark Mode Bypass / Per-Instance Dark Mode
+You can force dark mode on a specific table instance or bypass global dark mode settings by using `:dark-mode="true"`, `dark-mode-bypass`, or `dark-mode-class`:
+
+```vue
+<!-- Force dark mode on a single table (bypassing global settings) -->
+<SimpleTable 
+  :data="users" 
+  :columns="columns" 
+  :dark-mode="true" 
+/>
+
+<!-- Pass a custom dark mode class name -->
+<SimpleTable 
+  :data="users" 
+  :columns="columns" 
+  dark-mode-bypass="dark-theme" 
+/>
+```
+
+#### Dark Mode Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `dark-mode` | `boolean \| 'auto' \| string` | `'auto'` | Enables or forces dark mode on this table instance |
+| `dark-mode-bypass` | `boolean \| string` | `undefined` | Bypasses global root dark mode context; pass `true` or a custom class string |
+| `dark-mode-class` | `string` | `'dark'` | Custom CSS class applied when dark mode is active (default: `'dark'`) |
+
 
 ### Tailwind Configuration
 

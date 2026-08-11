@@ -44,13 +44,16 @@ interface Props {
   // Additional Query Parameters
   queryParams?: Record<string, any> // Additional parameters to send with every request (e.g., filters, user context)
   
-  // Style Props
+  // Style & Dark Mode Props
   rowHeight?: number // Table row height in pixels (default: 38)
-  oddRowColor?: string  // Tailwind color class, e.g. 'bg-white'
-  evenRowColor?: string // Tailwind color class, e.g. 'bg-gray-50'
-  hoverColor?: string   // Tailwind color class for hover, e.g. 'hover:bg-gray-100'. If passed, we'll try to apply group-hover for fixed cols.
+  oddRowColor?: string  // Tailwind color class, e.g. 'bg-white dark:bg-stone-900'
+  evenRowColor?: string // Tailwind color class, e.g. 'bg-gray-50 dark:bg-stone-800/40'
+  hoverColor?: string   // Tailwind color class for hover, e.g. 'hover:bg-gray-100 dark:hover:bg-stone-800'. If passed, we'll try to apply group-hover for fixed cols.
   paginationColor?: string // Hex color for active pagination button (default: #2563eb)
   rowKey?: string // Unique key for row identification (default: 'id')
+  darkMode?: boolean | 'auto' | string // Controls dark mode behavior (true = force dark mode, false = light mode, string = custom class)
+  darkModeClass?: string // Custom class to apply for dark mode (default: 'dark')
+  darkModeBypass?: boolean | string // Bypass global root dark mode setting or pass custom dark class directly
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -64,10 +67,11 @@ const props = withDefaults(defineProps<Props>(), {
   perPage: 10,
   pageSizes: () => [10, 20, 30, 50, 100],
   rowHeight: 38,
-  oddRowColor: 'bg-white',
-  evenRowColor: 'bg-gray-50',
-  hoverColor: 'hover:bg-gray-100',
-  rowKey: 'id'
+  oddRowColor: 'bg-white dark:bg-stone-900',
+  evenRowColor: 'bg-gray-50 dark:bg-stone-800/40',
+  hoverColor: 'hover:bg-gray-100 dark:hover:bg-stone-800',
+  rowKey: 'id',
+  darkModeClass: 'dark'
 })
 
 
@@ -124,6 +128,23 @@ const densityConfig = computed(() => {
     headerPadding,
     groupHeaderPadding
   }
+})
+
+// -- Computed: Dark Mode Container Classes --
+const rootContainerClasses = computed(() => {
+  const classes: string[] = ['space-y-4 w-full']
+  const targetDark = props.darkModeBypass ?? props.darkMode
+
+  if (targetDark === true) {
+    classes.push(props.darkModeClass || 'dark')
+  } else if (typeof targetDark === 'string' && targetDark !== 'false' && targetDark !== 'auto') {
+    classes.push(targetDark)
+    if (targetDark !== 'dark' && targetDark !== props.darkModeClass) {
+      classes.push('dark')
+    }
+  }
+
+  return classes.join(' ')
 })
 
 
@@ -691,12 +712,37 @@ function getHeaderJustifyClass(col: any) {
 
 // Get row class with simple alternating stripes (all rows)
 function getRowClass(row: any, idx: number) {
-  // Alternate: index 0 = white, index 1 = gray, index 2 = white, etc.
-  const isOdd = idx % 2 === 0  // Changed: even index = odd color (white)
-  return [
-    { [props.oddRowColor]: isOdd, [props.evenRowColor]: !isOdd },
-    row._isGroupHeader ? '' : props.hoverColor  // No hover on headers
-  ]
+  const isOdd = idx % 2 === 0
+  
+  const isDefaultOdd = !props.oddRowColor || props.oddRowColor.includes('bg-white')
+  const isDefaultEven = !props.evenRowColor || props.evenRowColor.includes('bg-gray-50')
+  const isDefaultHover = !props.hoverColor || props.hoverColor.includes('hover:bg-gray-100')
+
+  const classes: any[] = []
+
+  if (isOdd) {
+    if (isDefaultOdd) {
+      classes.push('st-row-odd')
+    } else {
+      classes.push(props.oddRowColor)
+    }
+  } else {
+    if (isDefaultEven) {
+      classes.push('st-row-even')
+    } else {
+      classes.push(props.evenRowColor)
+    }
+  }
+
+  if (!row._isGroupHeader) {
+    if (isDefaultHover) {
+      classes.push('st-row-hover')
+    } else {
+      classes.push(props.hoverColor)
+    }
+  }
+
+  return classes
 }
 
 // Get row number for auto-numbering (excluding group headers)
@@ -840,22 +886,21 @@ function getCellClass(col: any, index: number, totalCols: number, rowIndex: numb
             if (col.class) {
                 bgClass = col.class
             } else {
-                bgClass = isOdd ? (props.oddRowColor || 'bg-white') : (props.evenRowColor || 'bg-gray-50')
+                bgClass = isOdd ? (props.oddRowColor && !props.oddRowColor.includes('bg-white') ? props.oddRowColor : 'st-row-odd') : (props.evenRowColor && !props.evenRowColor.includes('bg-gray-50') ? props.evenRowColor : 'st-row-even')
             }
             
             // Should also match hover
-            if (props.hoverColor) {
-               const hoverParts = props.hoverColor.split(':')
-               if (hoverParts.length > 1) {
-                   bgClass += ` group-hover:${hoverParts[1]}`
-                   if (hoverParts.length > 2) {
-                       bgClass = bgClass + ':' + hoverParts.slice(2).join(':')
+            if (props.hoverColor && !props.hoverColor.includes('hover:bg-gray-100')) {
+               const hoverClasses = props.hoverColor.split(' ')
+               hoverClasses.forEach((cls) => {
+                   if (cls.includes('hover:')) {
+                       bgClass += ' ' + cls.replace('hover:', 'group-hover:')
                    }
-               }
+               })
             }
         } else {
-            // Header Row - use custom class if provided, otherwise default to white
-            bgClass = col.class || 'bg-white' // Must be opaque
+            // Header Row - use custom class if provided, otherwise default to st-head
+            bgClass = col.class || 'st-head' // Must be opaque
         }
         
         // Check if this is the last left-fixed column (boundary)
@@ -915,21 +960,20 @@ function getCellStyle(col: any, index: number, totalCols: number) {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div :class="rootContainerClasses" class="st-container">
     <!-- Toolbar -->
-    <div v-if="searchable" class="flex flex-wrap items-center justify-between gap-4 w-full">
+    <div v-if="searchable" class="flex flex-wrap items-center justify-between gap-4 w-full st-toolbar">
       
         <!-- Left Group: Rows + Search -->
         <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto flex-1">
             
             <!-- Rows per page -->
             <div class="flex items-center gap-2 shrink-0">
-                <span class="text-sm text-gray-500 whitespace-nowrap">Rows</span>
                 <div class="relative h-10 w-[70px]">
                     <select 
                         :value="currentPerPage" 
                         @change="(e: any) => handlePageSizeChange(e.target.value)"
-                        class="h-full w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                        class="h-full w-full rounded-md border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer st-select"
                     >
                         <option 
                             v-for="pageSize in normalizedPageSizes" 
@@ -943,14 +987,14 @@ function getCellStyle(col: any, index: number, totalCols: number) {
             </div>
 
             <!-- Search Input -->
-            <div class="relative flex-1 min-w-[200px]">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 pointer-events-none"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <div class="relative flex-1 max-w-sm min-w-[200px]">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="left: 0.875rem !important" class="absolute top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none st-icon"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                 <input
                     v-model="searchQuery"
                     type="text"
-                    style="padding-left: 2.5rem !important"
+                    style="padding-left: 2.75rem !important"
                     placeholder="Search..."
-                    class="flex h-10 w-full rounded-md border border-gray-300 bg-white !pr-3 !pl-10 py-2 text-sm ring-offset-white placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    class="flex h-10 w-full rounded-md border !pr-3 py-2 text-sm placeholder:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 st-input"
                 />
             </div>
       </div>
@@ -962,7 +1006,7 @@ function getCellStyle(col: any, index: number, totalCols: number) {
     </div>
 
     <!-- Table -->
-    <div class="border bg-white relative">
+    <div class="border relative rounded-md overflow-hidden st-card">
       <div class="overflow-x-auto">
         <!-- We add min-w-full to Table to ensure it stretches -->
         <Table class="min-w-full table-auto"> 
@@ -978,12 +1022,12 @@ function getCellStyle(col: any, index: number, totalCols: number) {
             >
               <div
                 v-if="col.sortable"
-                class="flex items-center space-x-2 cursor-pointer select-none hover:text-gray-900 w-full"
+                class="flex items-center space-x-2 cursor-pointer select-none w-full"
                 :class="getHeaderJustifyClass(col)"
                 @click="handleSort(col)"
               >
                 <div>{{ col.label }}</div>
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4 opacity-50 flex-shrink-0"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4 opacity-50 flex-shrink-0 st-icon"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
               </div>
               <div v-else class="w-full flex" :class="getHeaderJustifyClass(col)">{{ col.label }}</div>
             </TableHead>
@@ -992,9 +1036,9 @@ function getCellStyle(col: any, index: number, totalCols: number) {
         <TableBody>
           <template v-if="isLoading && tableData.length === 0">
              <TableRow>
-                <TableCell :colspan="columns.length" class="h-24 text-center">
+                <TableCell :colspan="columns.length" class="h-24 text-center st-text-muted">
                     <div class="flex items-center justify-center">
-                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6 animate-spin text-gray-500"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6 animate-spin st-icon"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
                     </div>
                 </TableCell>
              </TableRow>
@@ -1009,12 +1053,12 @@ function getCellStyle(col: any, index: number, totalCols: number) {
             >
               <!-- Group Header Row: Single cell spanning all columns -->
               <template v-if="row._isGroupHeader">
-                <TableCell :colspan="columns.length" class="border-b border-gray-200">
+                <TableCell :colspan="columns.length" class="border-b">
                   <div :class="[
                     'px-2', 
                     densityConfig.groupHeaderPadding, 
                     'font-semibold text-sm uppercase tracking-wide',
-                    row._groupTitleClass || 'text-gray-700'
+                    row._groupTitleClass || 'st-text-muted'
                   ]">
                     {{ row._groupTitle }}
                   </div>
@@ -1047,7 +1091,7 @@ function getCellStyle(col: any, index: number, totalCols: number) {
             </TableRow>
           </template>
           <TableRow v-else :style="{ height: densityConfig.cellHeight }">
-            <TableCell :colspan="columns.length" class="h-24 text-center">
+            <TableCell :colspan="columns.length" class="h-24 text-center st-text-muted">
               No results.
             </TableCell>
           </TableRow>
@@ -1056,20 +1100,20 @@ function getCellStyle(col: any, index: number, totalCols: number) {
       </div>
       
       <!-- Loading Overlay -->
-      <div v-if="isLoading && tableData.length > 0" class="absolute inset-0 bg-white/50 flex items-center justify-center z-[60]">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-8 w-8 animate-spin text-blue-600"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+      <div v-if="isLoading && tableData.length > 0" class="absolute inset-0 flex items-center justify-center z-[60] st-overlay">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-8 w-8 animate-spin text-blue-600 st-icon"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
       </div>
     </div>
 
     <!-- Pagination -->
     <div class="flex items-center justify-between flex-wrap gap-4 px-2 py-2">
-        <div class="text-sm text-gray-500">
+        <div class="text-sm st-text-muted">
             Showing {{ paginationMeta.from }} to {{ paginationMeta.to }} of {{ paginationMeta.total }} results
         </div>
       <div class="flex items-center space-x-1">
         <!-- Previous Button -->
         <button
-          class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-white hover:bg-gray-100 hover:text-gray-900 h-9 px-2 sm:px-3"
+          class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border h-9 px-2 sm:px-3 st-btn"
           :disabled="(isServerSide ? Number(serverMeta?.current_page) === 1 : currentPage === 1)"
           @click="handlePageChange(isServerSide ? (Number(serverMeta?.current_page || 1)) - 1 : currentPage - 1)"
         >
@@ -1082,7 +1126,7 @@ function getCellStyle(col: any, index: number, totalCols: number) {
           <!-- Ellipsis -->
           <span 
             v-if="page === '...'" 
-            class="inline-flex items-center justify-center h-9 px-2 sm:px-3 text-sm text-gray-500"
+            class="inline-flex items-center justify-center h-9 px-2 sm:px-3 text-sm st-text-muted"
           >
             ...
           </span>
@@ -1090,11 +1134,11 @@ function getCellStyle(col: any, index: number, totalCols: number) {
           <!-- Page Number Button -->
           <button
             v-else
-            class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border h-9 min-w-[36px] px-2 sm:px-3"
+            class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border h-9 min-w-[36px] px-2 sm:px-3 st-btn"
             :class="[
               (isServerSide ? Number(serverMeta?.current_page) === page : currentPage === page)
                 ? 'hover:bg-blue-700'
-                : 'border-gray-300 bg-white hover:bg-gray-100 hover:text-gray-900'
+                : 'st-btn'
             ]"
             :style="(isServerSide ? Number(serverMeta?.current_page) === page : currentPage === page) ? `background-color: ${props.paginationColor || '#2563eb'} !important; color: white !important; border-color: ${props.paginationColor || '#2563eb'} !important;` : ''"
             @click="handlePageChange(page as number)"
@@ -1105,7 +1149,7 @@ function getCellStyle(col: any, index: number, totalCols: number) {
         
         <!-- Next Button -->
         <button
-          class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-white hover:bg-gray-100 hover:text-gray-900 h-9 px-2 sm:px-3"
+          class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border h-9 px-2 sm:px-3 st-btn"
           :disabled="(isServerSide ? Number(serverMeta?.current_page) === Number(serverMeta?.last_page) : currentPage === totalPages)"
           @click="handlePageChange(isServerSide ? (Number(serverMeta?.current_page || 1)) + 1 : currentPage + 1)"
         >
@@ -1116,6 +1160,214 @@ function getCellStyle(col: any, index: number, totalCols: number) {
     </div>
   </div>
 </template>
+
+<style>
+/* Base Light Theme */
+.st-card {
+  background-color: var(--card, #ffffff);
+  border-color: var(--border, #e2e8f0);
+  color: var(--card-foreground, var(--foreground, #0f172a));
+}
+
+.st-select,
+.st-input {
+  background-color: var(--background, #ffffff);
+  color: var(--foreground, #0f172a);
+  border-color: var(--input, var(--border, #e2e8f0));
+}
+
+.st-select option {
+  background-color: var(--card, #ffffff);
+  color: var(--foreground, #0f172a);
+}
+
+.st-head {
+  background-color: var(--card, #ffffff);
+  color: var(--muted-foreground, #64748b);
+  border-color: var(--border, #e2e8f0);
+}
+
+.st-row-odd {
+  background-color: var(--card, #ffffff);
+  color: var(--foreground, #0f172a);
+}
+
+.st-row-even {
+  background-color: var(--muted, #f8fafc);
+  color: var(--foreground, #0f172a);
+}
+
+.st-row-hover:hover {
+  background-color: var(--accent, #f1f5f9);
+}
+
+.st-cell {
+  border-color: var(--border, #e2e8f0);
+  color: var(--foreground, #0f172a);
+}
+
+.st-text-muted {
+  color: var(--muted-foreground, #64748b);
+}
+
+.st-icon {
+  color: var(--muted-foreground, #64748b);
+}
+
+.st-btn {
+  background-color: var(--card, #ffffff);
+  color: var(--foreground, #0f172a);
+  border-color: var(--input, var(--border, #e2e8f0));
+}
+
+.st-btn:hover:not(:disabled) {
+  background-color: var(--accent, #f1f5f9);
+  color: var(--accent-foreground, #0f172a);
+}
+
+.st-overlay {
+  background-color: rgba(255, 255, 255, 0.6);
+}
+
+/* Universal Dark Theme Overrides */
+html.dark .st-card,
+body.dark .st-card,
+.dark .st-card,
+.dark.st-card,
+[data-theme='dark'] .st-card,
+.dark-theme .st-card {
+  background-color: var(--card, var(--color-card, #1e293b)) !important;
+  border-color: var(--border, var(--color-border, #334155)) !important;
+  color: var(--card-foreground, var(--foreground, #f8fafc)) !important;
+}
+
+html.dark .st-select,
+body.dark .st-select,
+.dark .st-select,
+.dark.st-select,
+html.dark .st-input,
+body.dark .st-input,
+.dark .st-input,
+.dark.st-input,
+[data-theme='dark'] .st-select,
+[data-theme='dark'] .st-input,
+.dark-theme .st-select,
+.dark-theme .st-input {
+  background-color: var(--background, var(--card, #0f172a)) !important;
+  color: var(--foreground, #f8fafc) !important;
+  border-color: var(--input, var(--border, #334155)) !important;
+}
+
+html.dark .st-select option,
+body.dark .st-select option,
+.dark .st-select option,
+.dark.st-select option,
+[data-theme='dark'] .st-select option {
+  background-color: var(--card, #1e293b) !important;
+  color: var(--foreground, #f8fafc) !important;
+}
+
+html.dark .st-text-muted,
+body.dark .st-text-muted,
+.dark .st-text-muted,
+.dark.st-text-muted,
+[data-theme='dark'] .st-text-muted {
+  color: var(--muted-foreground, #94a3b8) !important;
+}
+
+html.dark .st-icon,
+body.dark .st-icon,
+.dark .st-icon,
+.dark.st-icon,
+[data-theme='dark'] .st-icon {
+  color: var(--muted-foreground, #94a3b8) !important;
+}
+
+html.dark .st-head,
+body.dark .st-head,
+.dark .st-head,
+.dark.st-head,
+[data-theme='dark'] .st-head {
+  background-color: var(--card, #1e293b) !important;
+  color: var(--muted-foreground, #94a3b8) !important;
+  border-color: var(--border, #334155) !important;
+}
+
+html.dark .st-row,
+body.dark .st-row,
+.dark .st-row,
+.dark.st-row,
+[data-theme='dark'] .st-row {
+  background-color: transparent !important;
+}
+
+html.dark .st-row-odd,
+body.dark .st-row-odd,
+.dark .st-row-odd,
+.dark.st-row-odd,
+[data-theme='dark'] .st-row-odd,
+.dark-theme .st-row-odd {
+  background-color: var(--card, #1e293b) !important;
+  color: var(--foreground, #f8fafc) !important;
+}
+
+html.dark .st-row-even,
+body.dark .st-row-even,
+.dark .st-row-even,
+.dark.st-row-even,
+[data-theme='dark'] .st-row-even,
+.dark-theme .st-row-even {
+  background-color: var(--muted, rgba(255, 255, 255, 0.03)) !important;
+  color: var(--foreground, #f8fafc) !important;
+}
+
+html.dark .st-row-hover:hover,
+body.dark .st-row-hover:hover,
+.dark .st-row-hover:hover,
+.dark.st-row-hover:hover,
+[data-theme='dark'] .st-row-hover:hover,
+.dark-theme .st-row-hover:hover {
+  background-color: var(--accent, rgba(255, 255, 255, 0.08)) !important;
+}
+
+html.dark .st-cell,
+body.dark .st-cell,
+.dark .st-cell,
+.dark.st-cell,
+[data-theme='dark'] .st-cell,
+.dark-theme .st-cell {
+  border-color: var(--border, #334155) !important;
+  color: var(--foreground, #f8fafc) !important;
+}
+
+html.dark .st-btn,
+body.dark .st-btn,
+.dark .st-btn,
+.dark.st-btn,
+[data-theme='dark'] .st-btn,
+.dark-theme .st-btn {
+  background-color: var(--card, #1e293b) !important;
+  color: var(--foreground, #f8fafc) !important;
+  border-color: var(--input, var(--border, #334155)) !important;
+}
+
+html.dark .st-btn:hover:not(:disabled),
+body.dark .st-btn:hover:not(:disabled),
+.dark .st-btn:hover:not(:disabled),
+.dark.st-btn:hover:not(:disabled),
+[data-theme='dark'] .st-btn:hover:not(:disabled) {
+  background-color: var(--accent, #334155) !important;
+  color: var(--foreground, #ffffff) !important;
+}
+
+html.dark .st-overlay,
+body.dark .st-overlay,
+.dark .st-overlay,
+.dark.st-overlay,
+[data-theme='dark'] .st-overlay {
+  background-color: rgba(15, 23, 42, 0.6) !important;
+}
+</style>
 
 <style scoped>
 /* Fixed column boundary separator (DataTables approach) */

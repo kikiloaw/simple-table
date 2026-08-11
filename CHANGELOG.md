@@ -5,6 +5,23 @@ All notable changes to SimpleTable will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-08-11
+
+### Added
+- **Dark Mode Support**: Full native Tailwind dark mode support across table headers, rows, cells, search toolbar, select dropdowns, empty states, loading overlays, and pagination controls.
+- **Dark Mode & Bypass Props**:
+  - `darkMode` (`boolean | 'auto' | string`): Enables or forces dark mode on a specific table instance.
+  - `darkModeBypass` (`boolean | string`): Bypasses global page theme settings and forces dark mode / custom dark class directly on the component.
+  - `darkModeClass` (`string`): Specifies a custom dark mode class (default: `'dark'`).
+
+### Fixed
+- **Tailwind v4 & External Host Dark Mode**: Added unscoped `<style>` fallbacks using CSS variables (`--card`, `--background`, `--border`, `--foreground`, `--muted-foreground`) so dark mode works out-of-the-box in host applications (like Laravel Vite with Tailwind CSS v4) without requiring `node_modules` PostCSS scanning.
+- **Universal Theme Selectors**: Added scoped theme selectors (`html.dark`, `body.dark`, `.dark`, `[data-theme='dark']`) ensuring smooth theme switching and crisp text contrast across odd/even table rows.
+- **Search Icon Inline Offset**: Applied explicit inline style `left: 0.875rem !important` on the search SVG icon to ensure it is offset away from the search input left border.
+
+### Changed
+- **Clean Toolbar Layout**: Removed static "Rows" text label next to page size select and constrained search input with `max-w-sm` (384px) for a balanced toolbar layout.
+
 ## [1.1.22] - 2026-08-07
 
 ### Changed
