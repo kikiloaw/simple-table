@@ -5,6 +5,14 @@ All notable changes to SimpleTable will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-08-18
+
+### Fixed
+- **Multi-Column Sticky Positioning**: Added full multi-column support for `fixed: true`, `fixed: 'left'`, and `fixed: 'right'`. Right-fixed columns now accurately calculate cumulative offsets from the right edge.
+- **Opaque Sticky Backgrounds**: Fixed transparent/translucent backgrounds on sticky table cells and headers in both light and dark themes so scrolled content passes cleanly behind pinned columns.
+- **Fixed Boundary Shadow Placement**: Symmetrically positioned boundary shadow pseudo-elements outside the column (`right: -10px` for left-fixed boundary and `left: -10px` for right-fixed boundary), removing unwanted internal padding and boxes.
+- **Autonumber Fixed Column Width**: Set sensible `50px` default width for `autonumber: true` fixed columns.
+
 ## [1.2.0] - 2026-08-11
 
 ### Added

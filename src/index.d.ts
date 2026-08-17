@@ -5,7 +5,7 @@ export interface SimpleTableColumn {
   label: string
   sortable?: boolean | string
   class?: string
-  fixed?: boolean
+  fixed?: boolean | 'left' | 'right'
   width?: string
   align?: 'left' | 'center' | 'right'
   autonumber?: boolean

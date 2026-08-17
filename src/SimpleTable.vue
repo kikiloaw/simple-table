@@ -10,8 +10,6 @@ import {
   TableRow,
 } from './components/table'
 
-
-
 import { useDebounceFn, useWindowSize } from '@vueuse/core'
 
 /**
@@ -24,8 +22,9 @@ interface Props {
     label: string
     sortable?: boolean | string // true for default (use key), string for custom backend column name
     class?: string
-    fixed?: boolean // 'left' or 'right' could be added later, assuming 'right' for actions usually
+    fixed?: boolean | 'left' | 'right'
     width?: string
+    align?: 'left' | 'center' | 'right'
     autonumber?: boolean // If true, display auto-incremented row numbers instead of data
   }[]
   mode?: 'auto' | 'server' | 'client'
@@ -67,35 +66,84 @@ const props = withDefaults(defineProps<Props>(), {
   perPage: 10,
   pageSizes: () => [10, 20, 30, 50, 100],
   rowHeight: 38,
-  oddRowColor: 'bg-white dark:bg-stone-900',
-  evenRowColor: 'bg-gray-50 dark:bg-stone-800/40',
-  hoverColor: 'hover:bg-gray-100 dark:hover:bg-stone-800',
+  paginationColor: '#2563eb',
   rowKey: 'id',
   darkModeClass: 'dark'
 })
 
+const emit = defineEmits(['update:search', 'update:sort', 'page-change', 'fetched'])
 
+// -- State --
+const searchQuery = ref('')
+const sortColumn = ref('')
+const sortDirection = ref<'asc' | 'desc'>('asc')
+const currentPage = ref(1)
+const isLoading = ref(false)
 
-// ...
+const currentPerPage = ref(props.perPage)
+const drawCounter = ref(1) // For DataTables protocol
+
+// -- Cache System --
+const responseCache = ref<Map<string, any>>(new Map())
+
+function getCacheKey(): string {
+    return JSON.stringify({
+        page: currentPage.value,
+        perPage: currentPerPage.value,
+        search: searchQuery.value,
+        sort: sortColumn.value,
+        order: sortDirection.value,
+        queryParams: props.queryParams
+    })
+}
+
+async function clearCache(scope: 'all' | 'current' = 'all') {
+    if (scope === 'current') {
+        const key = getCacheKey()
+        responseCache.value.delete(key)
+    } else {
+        responseCache.value.clear()
+    }
+    
+    if (props.fetchUrl) {
+        await fetchData()
+    }
+}
+
+// Internal data state to handle both props updates and ajax updates
+const internalData = ref(props.data)
+
+watch(() => props.data, (newVal) => {
+    internalData.value = newVal
+}, { deep: true })
+
+// -- Computed: Mode Detection --
+const isServerSide = computed(() => {
+  if (props.mode === 'server') return true
+  if (props.mode === 'client') return false
+  if (props.fetchUrl) return true
+  
+  const d = internalData.value as any
+  if (d && typeof d === 'object' && !Array.isArray(d)) {
+    if ('current_page' in d) return true
+    if (d.meta && 'current_page' in d.meta) return true
+  }
+  return false
+})
 
 // -- Computed: Page Sizes Normalization --
 const normalizedPageSizes = computed(() => {
     if (!props.pageSizes || props.pageSizes.length === 0) return []
     
-    // Check first item type
     const first = props.pageSizes[0]
-    
-    // If simple numbers [10, 20]
     if (typeof first === 'number' || typeof first === 'string') {
         return props.pageSizes.map(v => ({ label: String(v), value: String(v) }))
     }
     
-    // If objects [{ label: 'All', value: 999 }, { label: '20', value: 20 }]
     if (typeof first === 'object' && 'label' in first && 'value' in first) {
         return props.pageSizes.map(v => ({ label: v.label, value: String(v.value) }))
     }
     
-    // Fallback?
     return []
 })
 
@@ -103,10 +151,6 @@ const normalizedPageSizes = computed(() => {
 const densityConfig = computed(() => {
   const height = props.rowHeight || 38
   
-  // Calculate padding based on height
-  // For 38px height: use p-2 (8px)
-  // For 48px height: use p-3 (12px)  
-  // For 56px+ height: use p-4 (16px)
   let cellPadding = 'p-2'
   let headerPadding = 'px-2'
   let groupHeaderPadding = 'py-1'
@@ -147,126 +191,17 @@ const rootContainerClasses = computed(() => {
   return classes.join(' ')
 })
 
-
-
-// <template>
-// ...
-/*
-      <div class="flex items-center gap-2 ml-auto">
-          <!-- Mini Export Buttons -->
-          <Button 
-            v-if="exportable || enableCsv" 
-            variant="outline" 
-            size="icon" 
-            class="h-8 w-8"
-            title="Export CSV"
-            @click="handleExport('csv')"
-         >
-            <FileText class="h-4 w-4 text-green-600" />
-         </Button>
-         <Button 
-            v-if="exportable || enableExcel" 
-            variant="outline" 
-            size="icon" 
-            class="h-8 w-8"
-            title="Export Excel"
-            @click="handleExport('excel')"
-         >
-            <Sheet class="h-4 w-4 text-emerald-600" />
-         </Button>
-         <Button 
-            v-if="exportable || enablePdf" 
-            variant="outline" 
-            size="icon" 
-            class="h-8 w-8"
-            title="Export PDF"
-            @click="handleExport('pdf')"
-         >
-             <!-- Using Download icon for PDF or maybe FileText? Let's use Download for generic or find a PDF-like icon. FileText is close. -->
-            <FileText class="h-4 w-4 text-red-600" />
-         </Button>
-         <slot name="actions" />
-      </div>
-*/
-
-const emit = defineEmits(['update:search', 'update:sort', 'page-change', 'fetched'])
-
-// -- State --
-const searchQuery = ref('')
-const sortColumn = ref('')
-const sortDirection = ref<'asc' | 'desc'>('asc')
-const currentPage = ref(1)
-const isLoading = ref(false)
-
-const currentPerPage = ref(props.perPage)
-const drawCounter = ref(1) // For DataTables protocol
-
-
-// -- Cache System --
-const responseCache = ref<Map<string, any>>(new Map())
-
-function getCacheKey(): string {
-    // Create a unique key based on current state
-    return JSON.stringify({
-        page: currentPage.value,
-        perPage: currentPerPage.value,
-        search: searchQuery.value,
-        sort: sortColumn.value,
-        order: sortDirection.value,
-        queryParams: props.queryParams
-    })
-}
-
-async function clearCache(scope: 'all' | 'current' = 'all') {
-    if (scope === 'current') {
-        const key = getCacheKey()
-        responseCache.value.delete(key)
-    } else {
-        responseCache.value.clear()
-    }
-    
-    // User requested behavior: clearCache triggers fresh fetch
-    if (props.fetchUrl) {
-        await fetchData()
-    }
-}
-
-// Internal data state to handle both props updates and ajax updates
-const internalData = ref(props.data)
-
-watch(() => props.data, (newVal) => {
-    internalData.value = newVal
-}, { deep: true })
-
-// -- Computed: Mode Detection --
-const isServerSide = computed(() => {
-  if (props.mode === 'server') return true
-  if (props.mode === 'client') return false
-  if (props.fetchUrl) return true
-  
-  // Auto detect
-  const d = internalData.value as any
-  if (d && typeof d === 'object' && !Array.isArray(d)) {
-    if ('current_page' in d) return true
-    if (d.meta && 'current_page' in d.meta) return true
-  }
-  return false
-})
-
 // -- Helper Data Accessors --
 const serverMeta = computed(() => {
     if (!isServerSide.value) return null
     const d = internalData.value as any
-    // Handle standard Laravel Paginator or Resource Collection
     const meta = d.meta || d
     
-    // Polyfill missing 'from' and 'to' if server response (like DataTables custom backend) omits them
     const page = meta.current_page ?? 1
     const pPage = meta.per_page ?? currentPerPage.value
     const total = meta.total ?? 0
     const dataCount = Array.isArray(d.data) ? d.data.length : 0
     
-    // Calculate fallback values
     const calculatedFrom = total === 0 ? 0 : ((page - 1) * pPage) + 1
     const calculatedTo = total === 0 ? 0 : Math.min(calculatedFrom + dataCount - 1, total)
 
@@ -289,7 +224,6 @@ const tableData = computed(() => {
     const d = internalData.value as any
     result = d.data || []
   } else {
-    // Client Side Processing
     let items = [...(internalData.value as any[])]
 
     // 1. Filter
@@ -319,10 +253,8 @@ const tableData = computed(() => {
     result = items.slice(start, end)
   }
   
-  // Apply beforeRender callback if provided
   if (props.beforeRender && typeof props.beforeRender === 'function') {
     const transformed = props.beforeRender(result)
-    // Ensure callback returns an array
     if (Array.isArray(transformed)) {
       result = transformed
     }
@@ -336,12 +268,12 @@ const totalPages = computed(() => {
     return serverMeta.value?.last_page || 1
   }
   let filtered = (internalData.value as any[])
-   if (searchQuery.value) {
+  if (searchQuery.value) {
       const lowerQuery = searchQuery.value.toLowerCase()
       filtered = filtered.filter((item) =>
-      Object.values(item).some((val) =>
-          String(val).toLowerCase().includes(lowerQuery)
-      )
+        Object.values(item).some((val) =>
+            String(val).toLowerCase().includes(lowerQuery)
+        )
       )
   }
   return Math.ceil(filtered.length / currentPerPage.value) || 1
@@ -351,17 +283,16 @@ const paginationMeta = computed(() => {
     if (isServerSide.value) {
         return serverMeta.value || { from: 0, to: 0, total: 0 }
     }
-    // Client side meta
     let filtered = (internalData.value as any[])
-     if (searchQuery.value) {
+    if (searchQuery.value) {
         const lowerQuery = searchQuery.value.toLowerCase()
         filtered = filtered.filter((item) =>
-        Object.values(item).some((val) =>
-            String(val).toLowerCase().includes(lowerQuery)
-        )
+            Object.values(item).some((val) =>
+                String(val).toLowerCase().includes(lowerQuery)
+            )
         )
     }
-    const total = filtered.length;
+    const total = filtered.length
     const from = total === 0 ? 0 : (currentPage.value - 1) * currentPerPage.value + 1
     const to = Math.min(from + currentPerPage.value - 1, total)
 
@@ -372,41 +303,32 @@ const paginationMeta = computed(() => {
 const { width } = useWindowSize()
 
 const pageNumbers = computed(() => {
-    // const { width } = useWindowSize() // MOVED OUTSIDE
     const isMobile = width.value < 640
     const isExtraSmall = width.value < 550
     
     const current = Number(isServerSide.value ? (serverMeta.value?.current_page || 1) : currentPage.value)
     const total = Number(totalPages.value)
-    // Show fewer surrounding pages on mobile to prevent overflow
-    // delta = 0 means only current page (plus first/last)
     const delta = isExtraSmall ? 0 : (isMobile ? 1 : 2)
     
     const pages: (number | string)[] = []
     
-    // Always show first page
     pages.push(1)
     
-    // Calculate range around current page
     const rangeStart = Math.max(2, current - delta)
     const rangeEnd = Math.min(total - 1, current + delta)
     
-    // Add ellipsis after first page if needed
     if (rangeStart > 2) {
         pages.push('...')
     }
     
-    // Add pages in range
     for (let i = rangeStart; i <= rangeEnd; i++) {
         pages.push(i)
     }
     
-    // Add ellipsis before last page if needed
     if (rangeEnd < total - 1) {
         pages.push('...')
     }
     
-    // Always show last page if there's more than one page
     if (total > 1) {
         pages.push(total)
     }
@@ -418,10 +340,8 @@ const pageNumbers = computed(() => {
 
 async function fetchData(params: any = {}) {
     if (props.fetchUrl) {
-        // Check cache first if enabled
         const cacheKey = getCacheKey()
         if (props.enableCache && responseCache.value.has(cacheKey)) {
-            // Use cached data
             internalData.value = responseCache.value.get(cacheKey)
             return
         }
@@ -429,25 +349,21 @@ async function fetchData(params: any = {}) {
         isLoading.value = true
 
         try {
-            // Construct Query Parameters
             const url = new URL(props.fetchUrl, window.location.origin)
             
             if (props.protocol === 'datatables') {
-                // DataTables format
                 const start = (currentPage.value - 1) * currentPerPage.value
                 url.searchParams.append('start', String(start))
                 url.searchParams.append('length', String(currentPerPage.value))
                 url.searchParams.append('draw', String(drawCounter.value))
                 
-                // Defensive: Remove standard pagination params if they exist in the base URL
                 url.searchParams.delete('page')
                 url.searchParams.delete('per_page')
                 
-                // Add Columns Configuration (Required for strict DataTables backends like Yajra)
                 props.columns.forEach((col, index) => {
                     const colName = typeof col.sortable === 'string' ? col.sortable : col.key
                     const isSortable = !!col.sortable
-                    const isSearchable = true // Default to true as SimpleTable global search applies to all usually
+                    const isSearchable = true
                     
                     url.searchParams.append(`columns[${index}][data]`, col.key)
                     url.searchParams.append(`columns[${index}][name]`, colName)
@@ -457,13 +373,10 @@ async function fetchData(params: any = {}) {
                     url.searchParams.append(`columns[${index}][search][regex]`, 'false')
                 })
 
-                // Global Search (Always send, even if empty)
                 url.searchParams.append('search[value]', searchQuery.value || '')
                 url.searchParams.append('search[regex]', 'false')
-                
 
                 if (sortColumn.value) {
-                    // Find column index
                     const columnIndex = props.columns.findIndex(col => {
                         const sortKey = typeof col.sortable === 'string' ? col.sortable : col.key
                         return sortKey === sortColumn.value
@@ -475,7 +388,6 @@ async function fetchData(params: any = {}) {
                     }
                 }
             } else {
-                // Laravel format (default)
                 url.searchParams.append('page', String(currentPage.value))
                 url.searchParams.append('per_page', String(currentPerPage.value))
                 
@@ -488,7 +400,6 @@ async function fetchData(params: any = {}) {
                 }
             }
 
-            // Add custom query params from prop
             if (props.queryParams) {
                 Object.keys(props.queryParams).forEach(key => {
                     const value = props.queryParams![key]
@@ -498,7 +409,6 @@ async function fetchData(params: any = {}) {
                 })
             }
 
-            // Merge passed params (these override queryParams if there's a conflict)
             Object.keys(params).forEach(key => {
                  url.searchParams.set(key, String(params[key]))
             })
@@ -518,13 +428,9 @@ async function fetchData(params: any = {}) {
 
             let data = await response.json()
             
-            // Emit raw response immediately
             emit('fetched', data)
             
-            // Transform DataTables response to internal format for internal use
             if (props.protocol === 'datatables') {
-                // DataTables response: { draw, recordsTotal, recordsFiltered, data }
-                // Transform to Laravel format internally
                 const totalRecords = data.recordsFiltered || data.recordsTotal || 0
                 const totalPages = Math.ceil(totalRecords / currentPerPage.value)
                 
@@ -538,14 +444,11 @@ async function fetchData(params: any = {}) {
                     to: Math.min(currentPage.value * currentPerPage.value, totalRecords)
                 }
                 
-                // Increment draw counter for next request
                 drawCounter.value++
             }
             
             internalData.value = data
-            // emit('fetched', data) // <-- Removed this, we emit raw data above
             
-            // Store in cache if enabled
             if (props.enableCache) {
                 responseCache.value.set(cacheKey, data)
             }
@@ -555,7 +458,6 @@ async function fetchData(params: any = {}) {
             isLoading.value = false
         }
     } else if (isServerSide.value) {
-        
         let data: any = {}
 
         if (props.protocol === 'datatables') {
@@ -571,12 +473,10 @@ async function fetchData(params: any = {}) {
                 ...props.queryParams
             }
 
-            // Add Sort
             if (params.sort || sortColumn.value) {
                 const colKey = params.sort ?? sortColumn.value
                 const colDir = params.order ?? sortDirection.value
                 
-                // Find column index
                 const columnIndex = props.columns.findIndex(col => {
                     const sortKey = typeof col.sortable === 'string' ? col.sortable : col.key
                     return sortKey === colKey
@@ -589,9 +489,7 @@ async function fetchData(params: any = {}) {
             }
             
             drawCounter.value++
-
         } else {
-            // Laravel format (default)
             data = { 
                 page: params.page ?? currentPage.value,
                 per_page: currentPerPage.value,
@@ -602,7 +500,7 @@ async function fetchData(params: any = {}) {
             }
         }
 
-         router.visit(window.location.pathname, {
+        router.visit(window.location.pathname, {
             data,
             preserveState: true,
             preserveScroll: true,
@@ -613,56 +511,11 @@ async function fetchData(params: any = {}) {
     }
 }
 
-// ...
-
-
-
-// ... 
-
-// -- Template for Pagination --
-/*
-    <div class="flex items-center justify-between px-2">
-      <!-- Left side: Meta + Page Size -->
-      <div class="flex items-center gap-6">
-          <div class="text-sm text-muted-foreground">
-              Showing {{ paginationMeta.from }} to {{ paginationMeta.to }} of {{ paginationMeta.total }} results
-          </div>
-          <div class="flex items-center space-x-2">
-            <p class="text-sm font-medium hidden sm:block">Rows per page</p>
-            <Select 
-                :model-value="String(currentPerPage)" 
-                @update:model-value="handlePageSizeChange"
-            >
-            <SelectTrigger class="h-8 w-[70px]">
-                <SelectValue :placeholder="String(currentPerPage)" />
-            </SelectTrigger>
-            <SelectContent side="top">
-                <SelectItem 
-                    v-for="pageSize in pageSizes" 
-                    :key="pageSize" 
-                    :value="String(pageSize)"
-                >
-                {{ pageSize }}
-                </SelectItem>
-            </SelectContent>
-            </Select>
-          </div>
-      </div>
-      
-      <!-- Right side: Nav Buttons -->
-      <div class="flex items-center space-x-2">
-        ... buttons ...
-      </div>
-    </div>
-*/
-
 // -- Actions --
 
 const debouncedSearch = useDebounceFn((value: string) => {
    if (isServerSide.value) {
     if (!props.fetchUrl) {
-         // Reset page for Inertia
-         // We do this manually here because fetchData logic is slightly different
          fetchData({ search: value, page: 1 })
     } else {
         currentPage.value = 1
@@ -679,8 +532,6 @@ watch(searchQuery, (val) => {
 })
 
 function handleSort(col: any) {
-  // Determine the actual column to sort by
-  // If sortable is a string, use it; otherwise use the column key
   const sortKey = typeof col.sortable === 'string' ? col.sortable : col.key
   
   if (sortColumn.value === sortKey) {
@@ -703,14 +554,12 @@ function handlePageSizeChange(size: any) {
     fetchData()
 }
 
-// Helper for header content alignment (justify for flex)
 function getHeaderJustifyClass(col: any) {
     if (col.align === 'center') return 'justify-center'
     if (col.align === 'right') return 'justify-end'
     return 'justify-start'
 }
 
-// Get row class with simple alternating stripes (all rows)
 function getRowClass(row: any, idx: number) {
   const isOdd = idx % 2 === 0
   
@@ -745,9 +594,7 @@ function getRowClass(row: any, idx: number) {
   return classes
 }
 
-// Get row number for auto-numbering (excluding group headers)
 function getRowNumber(idx: number): number {
-  // Count only data rows before this index
   let dataRowCount = 0
   for (let i = 0; i <= idx; i++) {
     if (!tableData.value[i]?._isGroupHeader) {
@@ -755,7 +602,6 @@ function getRowNumber(idx: number): number {
     }
   }
   
-  // Add offset for pagination
   if (isServerSide.value) {
     const currentPage = serverMeta.value?.current_page || 1
     const perPage = serverMeta.value?.per_page || currentPerPage.value
@@ -763,7 +609,6 @@ function getRowNumber(idx: number): number {
     return offset + dataRowCount
   }
   
-  // Client-side: just return the count
   return dataRowCount
 }
 
@@ -779,18 +624,13 @@ function handlePageChange(page: number) {
   emit('page-change', page)
 }
 
-
-// Refresh (Reset): Go to page 1, clear cache, and refetch
 async function refresh() {
     currentPage.value = 1
     await nextTick()
     
-    // Clear cache for fresh start
     if (props.enableCache) {
         clearCache('current')
-        // Note: clearCache calls fetchData(), so we don't need to call it again explicitly here
-        // However, clearCache is async now.
-        return // clearCache already fetched
+        return
     }
     
     fetchData()
@@ -803,44 +643,67 @@ onMounted(() => {
 })
 
 defineExpose({
-    refresh, // The "Reset" function (backward compatible name)
+    refresh,
     fetchData,
-    clearCache // The "Reload current page" function (effectively)
+    clearCache
 })
 
+// -- Helper Functions for Sticky / Fixed Columns --
 
-// -- Helper Functions --
-
-function isColFixed(col: any) {
-  return !!col.fixed
+function isColFixed(col: any): boolean {
+  return Boolean(col && col.fixed)
 }
 
-// Calculate left offset dynamically
+function getColFixedDirection(col: any, index: number, columns: any[]): 'left' | 'right' | null {
+  if (!col || !col.fixed) return null
+  if (col.fixed === 'left') return 'left'
+  if (col.fixed === 'right') return 'right'
+
+  const isTrailingFixed = columns.slice(index).every(c => Boolean(c && c.fixed))
+  if (isTrailingFixed) return 'right'
+
+  const isLeadingFixed = columns.slice(0, index + 1).every(c => Boolean(c && c.fixed))
+  if (isLeadingFixed) return 'left'
+
+  return index >= columns.length / 2 ? 'right' : 'left'
+}
+
+function getColumnWidthNumber(col: any): number {
+  if (col && col.width) {
+    if (typeof col.width === 'number') return col.width
+    if (typeof col.width === 'string') {
+      const match = col.width.match(/^(\d+(\.\d+)?)/)
+      if (match) return parseFloat(match[1])
+    }
+  }
+  if (col && col.autonumber) {
+    return 50
+  }
+  return 100
+}
+
 function getStickyLeftOffset(index: number) {
     let offset = 0
     for (let i = 0; i < index; i++) {
         const col = props.columns[i]
-        // Only consider left-fixed columns
-        const isRightFixed = (col.fixed && i === props.columns.length - 1)
-        
-        if (col.fixed && !isRightFixed) {
-            let w = 100 // Default width
-            if (col.width) {
-                 if (typeof col.width === 'string') {
-                    // Extract number from "80px", "100", etc.
-                    const match = col.width.match(/^(\d+(\.\d+)?)/)
-                    if (match) w = parseFloat(match[1])
-                 } else if (typeof col.width === 'number') {
-                    w = col.width
-                 }
-            }
-            offset += w
+        if (getColFixedDirection(col, i, props.columns) === 'left') {
+            offset += getColumnWidthNumber(col)
         }
     }
     return offset
 }
 
-// Helper to get nested value (e.g. "3.id" or "user.name")
+function getStickyRightOffset(index: number) {
+    let offset = 0
+    for (let i = index + 1; i < props.columns.length; i++) {
+        const col = props.columns[i]
+        if (getColFixedDirection(col, i, props.columns) === 'right') {
+            offset += getColumnWidthNumber(col)
+        }
+    }
+    return offset
+}
+
 function getDeepValue(obj: any, path: string) {
     if (!path) return undefined
     return path.split('.').reduce((o, p) => (o ? o[p] : undefined), obj)
@@ -850,46 +713,39 @@ function getDeepValue(obj: any, path: string) {
 function getCellClass(col: any, index: number, totalCols: number, rowIndex: number = -1) {
     let classes = ''
     
-    // Base classes
-    
-    // Add text alignment (default: left)
     const alignClass = col.align === 'center' ? ' text-center' : col.align === 'right' ? ' text-right' : ' text-left'
     classes += alignClass
     
-    if (col.fixed) {
-        // Sticky logic
-        let stickyClass = ' whitespace-nowrap'
+    const dir = getColFixedDirection(col, index, props.columns)
+
+    if (dir) {
+        const zIndexClass = rowIndex === -1 ? 'z-40' : 'z-30'
+        let stickyClass = ` whitespace-nowrap sticky ${zIndexClass} st-sticky-cell`
         
-        // Check if this is the LAST left-fixed column
-        // It is the last left-fixed if:
-        // 1. It is NOT the last column (which is right-fixed)
-        // 2. The NEXT column is NOT fixed OR is the last column (right-fixed)
-        const isRightFixed = index === totalCols - 1
-        
-        if (isRightFixed) {
-             // Last Column -> Right Sticky (shadow on LEFT side)
-             stickyClass = ' sticky right-0 z-50 fixed-column-boundary-left'
-        } else {
-            // Left Sticky - must have high z-index to stay on top of scrolling content
-            // Apply consistent shadow and border to all left-fixed columns (shadow on RIGHT side)
-            stickyClass = ' sticky z-50'
+        if (dir === 'right') {
+            const isFirstRightFixed = index === 0 || getColFixedDirection(props.columns[index - 1], index - 1, props.columns) !== 'right'
+            if (isFirstRightFixed) {
+                stickyClass += ' fixed-column-boundary-left'
+            }
+        } else if (dir === 'left') {
+            const isLastLeftFixed = index === totalCols - 1 || getColFixedDirection(props.columns[index + 1], index + 1, props.columns) !== 'left'
+            if (isLastLeftFixed) {
+                stickyClass += ' fixed-column-boundary-right'
+            }
         }
 
-        // Determine background
-        // Sticky cells need opaque bg.
         let bgClass = '' 
         
         if (rowIndex !== -1) {
-            // Body Row
             const isOdd = rowIndex % 2 === 0
-            // Use custom class if provided, otherwise use row colors
             if (col.class) {
                 bgClass = col.class
             } else {
-                bgClass = isOdd ? (props.oddRowColor && !props.oddRowColor.includes('bg-white') ? props.oddRowColor : 'st-row-odd') : (props.evenRowColor && !props.evenRowColor.includes('bg-gray-50') ? props.evenRowColor : 'st-row-even')
+                bgClass = isOdd 
+                    ? (props.oddRowColor && !props.oddRowColor.includes('bg-white') ? props.oddRowColor : 'st-row-odd') 
+                    : (props.evenRowColor && !props.evenRowColor.includes('bg-gray-50') ? props.evenRowColor : 'st-row-even')
             }
             
-            // Should also match hover
             if (props.hoverColor && !props.hoverColor.includes('hover:bg-gray-100')) {
                const hoverClasses = props.hoverColor.split(' ')
                hoverClasses.forEach((cls) => {
@@ -899,21 +755,11 @@ function getCellClass(col: any, index: number, totalCols: number, rowIndex: numb
                })
             }
         } else {
-            // Header Row - use custom class if provided, otherwise default to st-head
-            bgClass = col.class || 'st-head' // Must be opaque
+            bgClass = col.class || 'st-head st-sticky-head'
         }
         
-        // Check if this is the last left-fixed column (boundary)
-        const nextCol = props.columns[index + 1]
-        const isLastLeftFixed = nextCol && !nextCol.fixed
-        
-        if (isLastLeftFixed) {
-            classes += ' fixed-column-boundary-right !pr-6'
-        }
-        
-        classes += stickyClass + ' ' + bgClass + ' !bg-opacity-100'
+        classes += stickyClass + ' ' + bgClass
     } else {
-        // Non-fixed column - just add custom class if provided
         if (col.class) {
             classes += ' ' + col.class
         }
@@ -925,33 +771,25 @@ function getCellStyle(col: any, index: number, totalCols: number) {
     const style: any = {}
     
     if (col.width) {
-        style.width = col.width
-        style.minWidth = col.width
-        style.maxWidth = col.width
+        const w = typeof col.width === 'number' ? `${col.width}px` : col.width
+        style.width = w
+        style.minWidth = w
+        style.maxWidth = w
     } else if (col.fixed) {
-        style.width = '100px' // Default fixed width if not processing
-        style.minWidth = '100px'
+        const defaultW = col.autonumber ? '50px' : '100px'
+        style.width = defaultW
+        style.minWidth = defaultW
     }
 
-    if (col.fixed) {
-        // Handle Left vs Right
-        if (index !== totalCols - 1) {
-            // Left Sticky: Calculate directly
-            const left = getStickyLeftOffset(index)
-            style.left = `${left}px`
-            
-            // Only add separator to the LAST left-fixed column (the boundary)
-            const nextCol = props.columns[index + 1]
-            const isLastLeftFixed = nextCol && !nextCol.fixed
-            
-            if (isLastLeftFixed) {
-                // Add position relative so the ::after pseudo-element works
-                style.position = 'sticky' // Already sticky, but make it explicit
-            }
-        } else {
-            // Right sticky - will use CSS class for border
-        }
-        // Right sticky is handled by CSS class right-0
+    const dir = getColFixedDirection(col, index, props.columns)
+    if (dir === 'left') {
+        const left = getStickyLeftOffset(index)
+        style.left = `${left}px`
+        style.position = 'sticky'
+    } else if (dir === 'right') {
+        const right = getStickyRightOffset(index)
+        style.right = `${right}px`
+        style.position = 'sticky'
     }
     
     return style
@@ -1201,6 +1039,33 @@ function getCellStyle(col: any, index: number, totalCols: number) {
   background-color: var(--accent, #f1f5f9);
 }
 
+/* Sticky Column Opaque Backgrounds (Light Theme) */
+.st-sticky-cell,
+.st-sticky-head {
+  background-color: var(--card, #ffffff);
+  background-clip: padding-box;
+}
+
+th.st-sticky-cell,
+.st-head.st-sticky-head {
+  background-color: var(--card, #ffffff);
+}
+
+td.st-sticky-cell.st-row-even,
+tr.st-row-even td.st-sticky-cell {
+  background-color: var(--muted, #f8fafc);
+}
+
+td.st-sticky-cell.st-row-odd,
+tr.st-row-odd td.st-sticky-cell {
+  background-color: var(--card, #ffffff);
+}
+
+.group:hover td.st-sticky-cell,
+tr:hover td.st-sticky-cell {
+  background-color: var(--accent, #f1f5f9);
+}
+
 .st-cell {
   border-color: var(--border, #e2e8f0);
   color: var(--foreground, #0f172a);
@@ -1293,14 +1158,6 @@ body.dark .st-head,
   border-color: var(--border, #334155) !important;
 }
 
-html.dark .st-row,
-body.dark .st-row,
-.dark .st-row,
-.dark.st-row,
-[data-theme='dark'] .st-row {
-  background-color: transparent !important;
-}
-
 html.dark .st-row-odd,
 body.dark .st-row-odd,
 .dark .st-row-odd,
@@ -1317,7 +1174,7 @@ body.dark .st-row-even,
 .dark.st-row-even,
 [data-theme='dark'] .st-row-even,
 .dark-theme .st-row-even {
-  background-color: var(--muted, rgba(255, 255, 255, 0.03)) !important;
+  background-color: var(--muted, #182234) !important;
   color: var(--foreground, #f8fafc) !important;
 }
 
@@ -1327,7 +1184,61 @@ body.dark .st-row-hover:hover,
 .dark.st-row-hover:hover,
 [data-theme='dark'] .st-row-hover:hover,
 .dark-theme .st-row-hover:hover {
-  background-color: var(--accent, rgba(255, 255, 255, 0.08)) !important;
+  background-color: var(--accent, #334155) !important;
+}
+
+/* Sticky Column Opaque Backgrounds (Dark Theme) */
+html.dark .st-sticky-cell,
+body.dark .st-sticky-cell,
+.dark .st-sticky-cell,
+.dark.st-sticky-cell,
+[data-theme='dark'] .st-sticky-cell,
+html.dark .st-sticky-head,
+body.dark .st-sticky-head,
+.dark .st-sticky-head,
+[data-theme='dark'] .st-sticky-head {
+  background-color: var(--card, #1e293b) !important;
+  background-clip: padding-box;
+}
+
+html.dark th.st-sticky-cell,
+body.dark th.st-sticky-cell,
+.dark th.st-sticky-cell,
+[data-theme='dark'] th.st-sticky-cell {
+  background-color: var(--card, #1e293b) !important;
+}
+
+html.dark td.st-sticky-cell.st-row-odd,
+body.dark td.st-sticky-cell.st-row-odd,
+.dark td.st-sticky-cell.st-row-odd,
+[data-theme='dark'] td.st-sticky-cell.st-row-odd,
+html.dark tr.st-row-odd td.st-sticky-cell,
+body.dark tr.st-row-odd td.st-sticky-cell,
+.dark tr.st-row-odd td.st-sticky-cell,
+[data-theme='dark'] tr.st-row-odd td.st-sticky-cell {
+  background-color: var(--card, #1e293b) !important;
+}
+
+html.dark td.st-sticky-cell.st-row-even,
+body.dark td.st-sticky-cell.st-row-even,
+.dark td.st-sticky-cell.st-row-even,
+[data-theme='dark'] td.st-sticky-cell.st-row-even,
+html.dark tr.st-row-even td.st-sticky-cell,
+body.dark tr.st-row-even td.st-sticky-cell,
+.dark tr.st-row-even td.st-sticky-cell,
+[data-theme='dark'] tr.st-row-even td.st-sticky-cell {
+  background-color: var(--muted, #182234) !important;
+}
+
+html.dark .group:hover td.st-sticky-cell,
+html.dark tr:hover td.st-sticky-cell,
+body.dark .group:hover td.st-sticky-cell,
+body.dark tr:hover td.st-sticky-cell,
+.dark .group:hover td.st-sticky-cell,
+.dark tr:hover td.st-sticky-cell,
+[data-theme='dark'] .group:hover td.st-sticky-cell,
+[data-theme='dark'] tr:hover td.st-sticky-cell {
+  background-color: var(--accent, #334155) !important;
 }
 
 html.dark .st-cell,
@@ -1375,7 +1286,7 @@ body.dark .st-overlay,
   content: "";
   position: absolute;
   top: 0;
-  right: 0;
+  right: -10px;
   bottom: 0;
   width: 10px;
   box-shadow: rgba(0, 0, 0, 0.2) 6px 0px 4px -4px inset;
